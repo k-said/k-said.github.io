@@ -1,0 +1,2484 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Contour‑Guided Machinery Path Planner</title>
+
+    <!-- Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Leaflet Rotated Marker (for machinery heading) -->
+    <script src="https://unpkg.com/leaflet-rotatedmarker@0.2.0/leaflet.rotatedMarker.js"></script>
+
+    <!-- Leaflet Draw -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* ── Top bar ── */
+        #topbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 16px;
+            background: #16213e;
+            border-bottom: 2px solid #0f3460;
+            flex-wrap: wrap;
+        }
+
+        #topbar h1 {
+            font-size: 1rem;
+            color: #e94560;
+            white-space: nowrap;
+        }
+
+        .file-btn {
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        .file-btn input[type=file] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .file-btn span {
+            display: inline-block;
+            padding: 5px 12px;
+            background: #0f3460;
+            border: 1px solid #e94560;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            white-space: nowrap;
+        }
+
+        .file-btn span.loaded {
+            background: #1a6e3a;
+            border-color: #4caf50;
+        }
+
+        label {
+            font-size: 0.78rem;
+            color: #aaa;
+        }
+
+        select,
+        input[type=range] {
+            background: #0f3460;
+            color: #eee;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 3px 6px;
+            font-size: 0.8rem;
+        }
+
+        input[type=range] {
+            width: 100px;
+        }
+
+        button {
+            padding: 5px 14px;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.82rem;
+            cursor: pointer;
+            transition: opacity .2s;
+        }
+
+        button:hover {
+            opacity: .8;
+        }
+
+        #btnPlay {
+            background: #4caf50;
+            color: #fff;
+        }
+
+        #btnPause {
+            background: #ff9800;
+            color: #fff;
+        }
+
+        #progress-wrap {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex: 1;
+            min-width: 180px;
+        }
+
+        #progressBar {
+            flex: 1;
+            cursor: pointer;
+        }
+
+        #progressLabel {
+            font-size: 0.75rem;
+            color: #8c0c41;
+            white-space: nowrap;
+        }
+
+        /* ── Layer checkboxes ── */
+        #layer-checks {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            background: #0f3460;
+            border: 1px solid #1e4d80;
+            border-radius: 6px;
+            padding: 4px 8px;
+        }
+
+        .layer-check {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.78rem;
+            color: #eee;
+            user-select: none;
+            transition: background 0.15s;
+            white-space: nowrap;
+        }
+
+        .layer-check:hover {
+            background: rgba(86, 180, 255, 0.15);
+        }
+
+        .layer-check input[type=checkbox] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border: 1.5px solid #56b4ff;
+            border-radius: 3px;
+            background: #1a1a2e;
+            cursor: pointer;
+            flex-shrink: 0;
+            position: relative;
+            transition: background 0.15s, border-color 0.15s;
+        }
+
+        .layer-check input[type=checkbox]:checked {
+            background: #56b4ff;
+            border-color: #56b4ff;
+        }
+
+        .layer-check input[type=checkbox]:checked::after {
+            content: '';
+            position: absolute;
+            left: 2px;
+            top: 0px;
+            width: 4px;
+            height: 8px;
+            border: 2px solid #0f3460;
+            border-top: none;
+            border-left: none;
+            transform: rotate(45deg);
+        }
+
+        .layer-check input[type=checkbox]:not(:checked)+span {
+            opacity: 0.45;
+        }
+
+        #btnResetView {
+            background: #e94560;
+            color: #fff;
+        }
+
+        #btnResetAll {
+            background: #8b0000;
+            color: #fff;
+        }
+
+        #advancedToggle {
+            background: none;
+            border: none;
+            color: #56b4ff;
+            cursor: pointer;
+            font-size: 0.78rem;
+            padding: 2px 0;
+            text-align: left;
+            width: 100%;
+        }
+
+        #advancedParams {
+            display: none;
+        }
+
+        #advancedParams.open {
+            display: block;
+        }
+
+        /* ── Stats panel ── */
+        #statsPanel {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(22, 33, 62, 0.92);
+            border: 1px solid #0f3460;
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 0.78rem;
+            line-height: 1.7;
+            color: #eee;
+            z-index: 1000;
+            max-width: 380px;
+            display: none;
+        }
+
+        #statsPanel.visible {
+            display: block;
+        }
+
+        #statsPanel h4 {
+            color: #e94560;
+            margin-bottom: 6px;
+            font-size: 0.85rem;
+        }
+
+        #statsPanel .stat-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        #statsPanel .stat-label {
+            color: #bbb;
+        }
+
+        #statsPanel .stat-val {
+            color: #4cff56;
+            font-weight: 600;
+        }
+
+        #statsPanel .stat-pct {
+            color: #56b4ff;
+            font-size: 0.72rem;
+        }
+
+        #statsPanel .section-title {
+            color: #ffdd57;
+            margin-top: 8px;
+            margin-bottom: 2px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        #statsPanel .impact-val {
+            color: #ff8c00;
+            font-weight: 600;
+        }
+
+        #statsPanel hr {
+            border: none;
+            border-top: 1px solid #0f3460;
+            margin: 6px 0;
+        }
+
+        /* ── Machinery marker ── */
+        .tractor-icon {
+            font-size: 22px;
+            line-height: 1;
+            text-align: center;
+            filter: drop-shadow(0 0 4px rgba(255, 200, 0, .9));
+        }
+
+        /* ── Sidebar ── */
+        #sidebarToggle {
+            background: #e94560;
+            color: #fff;
+            padding: 5px 12px;
+            white-space: nowrap;
+        }
+
+        #sidebar {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 270px;
+            height: 100%;
+            background: #16213e;
+            border-left: 2px solid #0f3460;
+            display: flex;
+            flex-direction: column;
+            z-index: 1100;
+            transition: transform .25s;
+            overflow-y: auto;
+        }
+
+        #sidebar.collapsed {
+            transform: translateX(270px);
+        }
+
+        #sidebarInner {
+            padding: 12px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        #sidebarInner h3 {
+            font-size: 0.82rem;
+            color: #e94560;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            margin-top: 4px;
+        }
+
+        .param-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px 8px;
+            align-items: center;
+        }
+
+        .param-grid label {
+            font-size: 0.75rem;
+            color: #bbb;
+        }
+
+        .param-grid input[type=number],
+        .param-grid input[type=checkbox] {
+            background: #0f3460;
+            color: #eee;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 3px 6px;
+            font-size: 0.8rem;
+            width: 100%;
+        }
+
+        .param-grid input[type=checkbox] {
+            width: auto;
+        }
+
+        #btnDraw {
+            background: #0f3460;
+            color: #eee;
+            border: 1px solid #56b4ff;
+            width: 100%;
+        }
+
+        #btnDraw.active {
+            background: #56b4ff;
+            color: #000;
+        }
+
+        #btnClearBnd {
+            background: #333;
+            color: #eee;
+            border: 1px solid #666;
+            width: 100%;
+        }
+
+        #btnPickGate {
+            background: #0f3460;
+            color: #eee;
+            border: 1px solid #e94560;
+            width: 100%;
+        }
+
+        #btnPickGate.active {
+            background: #e94560;
+            color: #fff;
+        }
+
+        #btnClearGate {
+            background: #333;
+            color: #eee;
+            border: 1px solid #666;
+            width: 100%;
+        }
+
+        #orientHint {
+            font-size: 0.72rem;
+            color: #56b4ff;
+            min-height: 1.2em;
+        }
+
+        #btnGenerate {
+            background: #4caf50;
+            color: #fff;
+            width: 100%;
+            padding: 7px;
+            font-size: 0.9rem;
+        }
+
+        #genStatus {
+            font-size: 0.76rem;
+            color: #aaa;
+            min-height: 1.4em;
+            word-break: break-word;
+        }
+
+        /* ── Map wrapper (needed for sidebar overlay) ── */
+        #mapwrap {
+            position: relative;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        #map {
+            position: absolute;
+            inset: 0;
+        }
+
+        /* ── Contour elevation labels ── */
+        .contour-label {
+            background: rgba(22, 33, 62, 0.78);
+            border: 1px solid #a0522d;
+            border-radius: 3px;
+            color: #f5c97a;
+            font-size: 0.68rem;
+            padding: 1px 4px;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+
+        .contour-label-selected {
+            border-color: #ffdd57;
+            color: #ffdd57;
+            font-weight: 700;
+        }
+
+        /* ── Help modal ── */
+        #helpOverlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #16213e;
+            z-index: 9999;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        #helpOverlay.visible {
+            display: block;
+        }
+
+        #helpContent {
+            background: #16213e;
+            max-width: 860px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 28px 32px 60px;
+            color: #eee;
+            position: relative;
+        }
+
+        #helpContent h2 {
+            color: #e94560;
+            margin: 0 0 18px;
+            font-size: 1.2rem;
+        }
+
+        #helpContent h3 {
+            color: #ffdd57;
+            margin: 22px 0 8px;
+            font-size: 0.95rem;
+            border-bottom: 1px solid #0f3460;
+            padding-bottom: 4px;
+        }
+
+        #helpContent .hp {
+            display: flex;
+            gap: 18px;
+            margin: 8px 0 14px;
+            align-items: flex-start;
+            flex-wrap: wrap;
+        }
+
+        #helpContent .hp-text {
+            flex: 1;
+            min-width: 220px;
+            font-size: 0.82rem;
+            line-height: 1.65;
+            color: #ccc;
+        }
+
+        #helpContent .hp-text b {
+            color: #56b4ff;
+        }
+
+        #helpContent .hp-fig {
+            flex: 0 0 280px;
+        }
+
+        #helpContent .hp-fig svg {
+            width: 100%;
+            height: auto;
+        }
+
+        #btnCloseHelp {
+            position: absolute;
+            top: 10px;
+            right: 14px;
+            background: #e94560;
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            font-size: 1rem;
+            cursor: pointer;
+            line-height: 28px;
+            text-align: center;
+        }
+
+        #btnHelp {
+            background: #56b4ff;
+            color: #0f3460;
+            font-weight: 700;
+        }
+
+        /* ── Download buttons ── */
+        .dl-section {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .dl-btn {
+            background: #0f3460;
+            color: #eee;
+            border: 1px solid #56b4ff;
+            border-radius: 4px;
+            padding: 5px 10px;
+            font-size: 0.78rem;
+            cursor: pointer;
+            text-align: left;
+            transition: background 0.15s;
+        }
+
+        .dl-btn:hover {
+            background: #183a6e;
+        }
+
+        .dl-btn:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+        }
+
+        .dl-btn.isoxml {
+            border-color: #ff6600;
+            color: #ff6600;
+            font-weight: 600;
+        }
+
+        /* ── Contour edit section ── */
+        .contour-edit-section {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        #btnEditContour {
+            background: #0f3460;
+            color: #ffdd57;
+            border: 1px solid #ffdd57;
+            width: 100%;
+        }
+
+        #btnEditContour.active {
+            background: #ffdd57;
+            color: #000;
+        }
+
+        #btnDrawContour {
+            background: #0f3460;
+            color: #ff6600;
+            border: 1px solid #ff6600;
+            width: 100%;
+        }
+
+        #btnDrawContour.active {
+            background: #ff6600;
+            color: #fff;
+        }
+
+        #btnClearEditedContour {
+            background: #333;
+            color: #eee;
+            border: 1px solid #666;
+            width: 100%;
+        }
+
+        #btnRecalcContour {
+            background: #e94560;
+            color: #fff;
+            width: 100%;
+            padding: 6px;
+            font-size: 0.85rem;
+        }
+
+        #contourEditStatus {
+            font-size: 0.72rem;
+            color: #ffdd57;
+            min-height: 1.2em;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ── Controls ── -->
+    <div id="topbar">
+        <h1>🌾 Contour‑Guided Machinery Path Planner</h1>
+
+        <label>Speed
+            <input type="range" id="speedSlider" min="1" max="20" value="5" />
+        </label>
+
+        <button id="btnPlay">▶ Play</button>
+        <button id="btnPause">⏸ Pause</button>
+
+        <label class="layer-check" style="font-size:0.75rem;color:#aaa;">🗺
+            <select id="selBackground"
+                style="background:#0f3460;color:#eee;border:1px solid #444;border-radius:4px;padding:2px 6px;font-size:0.78rem;">
+                <option value="imagery">Imagery</option>
+                <option value="map">Map</option>
+                <option value="none">None</option>
+            </select>
+        </label>
+
+        <div id="layer-checks">
+            <label class="layer-check"><input type="checkbox" id="chkBestRoutes" checked /><span>🌾
+                    Lanes+Headways</span></label>
+            <label class="layer-check"><input type="checkbox" id="chkSmoothed" checked /><span>🛤 Smoothed
+                    route</span></label>
+            <label class="layer-check"><input type="checkbox" id="chkBoundary" checked /><span>📐
+                    Boundary</span></label>
+            <label class="layer-check"><input type="checkbox" id="chkContours" checked /><span>🗻
+                    Contours</span></label>
+            <label class="layer-check"><input type="checkbox" id="chkSelectedContour" checked /><span>⭐ Selected
+                    contour</span></label>
+        </div>
+
+        <button id="btnResetView">⏮ Reset View</button>
+        <button id="btnResetAll">🗑 Reset All</button>
+
+        <button id="sidebarToggle">⚙ Parameters</button>
+        <button id="btnHelp">❓ Help</button>
+
+        <div id="progress-wrap">
+            <input type="range" id="progressBar" min="0" max="1000" value="0" />
+            <span id="progressLabel">0 %</span>
+        </div>
+    </div>
+
+    <!-- ── Help overlay ── -->
+    <div id="helpOverlay">
+        <div id="helpContent">
+            <button id="btnCloseHelp">✕</button>
+
+            <!-- Header with logo & titles -->
+            <div style="display:flex;align-items:center;gap:18px;margin-bottom:22px;flex-wrap:wrap;">
+                <!-- Syngenta logo -->
+                <svg viewBox="0 0 220 40" width="160" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="220" height="40" rx="6" fill="#fff" />
+                    <circle cx="20" cy="20" r="12" fill="#00a651" />
+                    <circle cx="20" cy="20" r="7" fill="#fff" />
+                    <circle cx="20" cy="20" r="3.5" fill="#00a651" />
+                    <text x="38" y="26" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="700"
+                        fill="#333">syngenta</text>
+                </svg>
+                <div>
+                    <div style="font-size:1.1rem;color:#e94560;font-weight:700;">Contour‑Guided Machinery Path Planner
+                    </div>
+                    <div style="font-size:0.78rem;color:#56b4ff;margin-top:2px;">Digital Sustainability &amp; Soil
+                        Health Team</div>
+                </div>
+            </div>
+
+            <h2>📖 Contour‑Guided Machinery Path Planner — Help</h2>
+
+            <!-- ============ GETTING STARTED ============ -->
+            <h3>🚀 Getting Started</h3>
+            <div class="hp">
+                <div class="hp-text">
+
+                    <b>1. Draw or load a field boundary</b><br>
+                    Click <b>⚙ Parameters</b> to open the sidebar, then either:<br>
+                    &bull; Click <b>Draw polygon on map</b> and draw your field boundary directly, or<br>
+                    &bull; Scroll down and use <b>Load boundary.geojson</b> to upload an existing file.<br><br>
+
+                    <b>2. Place the gate (entry point)</b><br>
+                    Click <b>Click map to place gate</b>, then click on the map where the
+                    machine enters/exits the field.<br><br>
+
+                    <b>3. Set parameters</b><br>
+                    Adjust Lane width, Headway width, etc. in the sidebar.
+                    For contour‑following mode, enable <b>Use elevation contours</b>
+                    under Advanced parameters.<br><br>
+
+                    <b>4. Generate paths</b><br>
+                    Click the green <b>▶ Generate paths</b> button. The server computes
+                    lanes, headways, route, and statistics. Results appear on the map
+                    and in the <b>📊 Path Statistics</b> panel (bottom‑left).<br><br>
+
+                    <b>5. Animate &amp; inspect</b><br>
+                    Use <b>▶ Play</b> to animate the tractor along the smoothed route.
+                    Toggle layers with the checkboxes in the top bar.
+                    Switch the map background between Imagery, Map, or None.
+                </div>
+                <div class="hp-fig">
+                    <svg viewBox="0 0 280 320" xmlns="http://www.w3.org/2000/svg">
+                        <!-- Step flow -->
+                        <rect x="10" y="5" width="260" height="310" rx="8" fill="#1a2744" stroke="#0f3460"
+                            stroke-width="1.5" />
+
+                        <circle cx="40" cy="76" r="14" fill="#56b4ff" />
+                        <text x="40" y="81" fill="#0f3460" font-size="12" text-anchor="middle"
+                            font-weight="700">1</text>
+                        <text x="62" y="80" fill="#eee" font-size="10">Draw / load boundary</text>
+                        <!-- Step 2 -->
+                        <line x1="40" y1="90" x2="40" y2="108" stroke="#56b4ff" stroke-width="1.5"
+                            stroke-dasharray="3,2" />
+                        <circle cx="40" cy="122" r="14" fill="#e94560" />
+                        <text x="40" y="127" fill="#fff" font-size="12" text-anchor="middle" font-weight="700">2</text>
+                        <text x="62" y="126" fill="#eee" font-size="10">Place gate</text>
+                        <!-- Step 4 -->
+                        <line x1="40" y1="136" x2="40" y2="154" stroke="#56b4ff" stroke-width="1.5"
+                            stroke-dasharray="3,2" />
+                        <circle cx="40" cy="168" r="14" fill="#ffdd57" />
+                        <text x="40" y="173" fill="#333" font-size="12" text-anchor="middle" font-weight="700">3</text>
+                        <text x="62" y="172" fill="#eee" font-size="10">Set parameters</text>
+                        <!-- Step 5 -->
+                        <line x1="40" y1="182" x2="40" y2="200" stroke="#56b4ff" stroke-width="1.5"
+                            stroke-dasharray="3,2" />
+                        <circle cx="40" cy="214" r="14" fill="#4caf50" />
+                        <text x="40" y="219" fill="#fff" font-size="12" text-anchor="middle" font-weight="700">4</text>
+                        <text x="62" y="218" fill="#eee" font-size="10">▶ Generate paths</text>
+                        <!-- Step 5 -->
+                        <line x1="40" y1="228" x2="40" y2="246" stroke="#56b4ff" stroke-width="1.5"
+                            stroke-dasharray="3,2" />
+                        <circle cx="40" cy="260" r="14" fill="#ff6600" />
+                        <text x="40" y="265" fill="#fff" font-size="12" text-anchor="middle" font-weight="700">5</text>
+                        <text x="62" y="264" fill="#eee" font-size="10">Animate &amp; inspect</text>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- ============ MAIN PARAMETERS ============ -->
+            <h3>🌾 Main Parameters</h3>
+
+            <!-- Lane width -->
+            <div class="hp">
+                <div class="hp-text">
+                    <b>Lane width (m)</b> — distance between adjacent working lanes (centre to centre).
+                    Should match your implement working width so coverage is complete
+                    without excessive overlap.<br>Default: <b>10 m</b>
+                </div>
+                <div class="hp-fig">
+                    <svg viewBox="0 0 280 120" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="10" y="10" width="260" height="100" rx="6" fill="#1a2744" stroke="#0f3460" />
+                        <line x1="60" y1="20" x2="60" y2="100" stroke="#4cff56" stroke-width="2" />
+                        <line x1="140" y1="20" x2="140" y2="100" stroke="#4cff56" stroke-width="2" />
+                        <line x1="220" y1="20" x2="220" y2="100" stroke="#4cff56" stroke-width="2" />
+                        <line x1="60" y1="60" x2="140" y2="60" stroke="#ffdd57" stroke-width="1.5"
+                            stroke-dasharray="4,3" />
+                        <text x="100" y="54" fill="#ffdd57" font-size="11" text-anchor="middle">lane gap</text>
+                        <text x="60" y="112" fill="#4cff56" font-size="9" text-anchor="middle">Lane 1</text>
+                        <text x="140" y="112" fill="#4cff56" font-size="9" text-anchor="middle">Lane 2</text>
+                        <text x="220" y="112" fill="#4cff56" font-size="9" text-anchor="middle">Lane 3</text>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Headway gap -->
+            <div class="hp">
+                <div class="hp-text">
+                    <b>Headway width (m)</b> — distance between successive headway rings
+                    (the concentric paths around the inside of the field boundary).
+                    Matches implement width for the headway pass.<br>Default: <b>5 m</b>
+                </div>
+                <div class="hp-fig">
+                    <svg viewBox="0 0 280 160" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="10" y="10" width="260" height="140" rx="8" fill="none" stroke="#e94560"
+                            stroke-width="2" stroke-dasharray="6,4" />
+                        <rect x="30" y="30" width="220" height="100" rx="6" fill="none" stroke="#56b4ff"
+                            stroke-width="2" />
+                        <rect x="50" y="50" width="180" height="60" rx="4" fill="none" stroke="#56b4ff"
+                            stroke-width="2" />
+                        <line x1="255" y1="30" x2="255" y2="50" stroke="#ffdd57" stroke-width="1.5"
+                            stroke-dasharray="3,2" />
+                        <text x="268" y="44" fill="#ffdd57" font-size="9">gap</text>
+                        <text x="140" y="84" fill="#56b4ff" font-size="10" text-anchor="middle">Headway 2</text>
+                        <text x="140" y="136" fill="#56b4ff" font-size="10" text-anchor="middle">Headway 1</text>
+                        <text x="140" y="156" fill="#e94560" font-size="10" text-anchor="middle">Boundary</text>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Headway-border gap -->
+            <div class="hp">
+                <div class="hp-text">
+                    <b>Headway-border gap (m)</b> — offset from the field boundary to the
+                    first (outermost) headway ring. Controls how far inward the tractor
+                    drives from the field edge.<br>Default: <b>5 m</b>
+                </div>
+                <div class="hp-fig">
+                    <svg viewBox="0 0 280 140" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="10" y="10" width="260" height="120" rx="8" fill="none" stroke="#e94560"
+                            stroke-width="2" stroke-dasharray="6,4" />
+                        <rect x="40" y="40" width="200" height="60" rx="5" fill="none" stroke="#56b4ff"
+                            stroke-width="2" />
+                        <line x1="10" y1="70" x2="40" y2="70" stroke="#ffdd57" stroke-width="1.5"
+                            stroke-dasharray="3,2" />
+                        <text x="25" y="64" fill="#ffdd57" font-size="9" text-anchor="middle">bdr gap</text>
+                        <text x="140" y="75" fill="#56b4ff" font-size="10" text-anchor="middle">Headway 1</text>
+                        <text x="140" y="136" fill="#e94560" font-size="10" text-anchor="middle">Boundary</text>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Num headways -->
+            <div class="hp">
+                <div class="hp-text">
+                    <b>Num headways</b> — how many concentric headway rings to create
+                    inside the boundary before generating interior lanes.
+                    More headways = more room for turning at the field edges.<br>Default: <b>2</b>
+                </div>
+            </div>
+
+            <!-- Lane orientation -->
+            <div class="hp">
+                <div class="hp-text">
+                    <b>Lane orientation (°)</b> — angle (degrees from east, counter-clockwise)
+                    of the interior lanes. Leave blank for <b>auto</b> (picks the orientation
+                    that best fits the field shape, minimising the number of short lanes).
+                </div>
+                <div class="hp-fig">
+                    <svg viewBox="0 0 280 140" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="10" y="10" width="260" height="120" rx="6" fill="#1a2744" stroke="#0f3460" />
+                        <line x1="40" y1="110" x2="240" y2="110" stroke="#666" stroke-width="1" />
+                        <line x1="40" y1="110" x2="200" y2="30" stroke="#4cff56" stroke-width="2" />
+                        <path d="M 90 110 A 55 55 0 0 0 72 80" fill="none" stroke="#ffdd57" stroke-width="1.5" />
+                        <text x="95" y="98" fill="#ffdd57" font-size="10">θ°</text>
+                        <text x="200" y="26" fill="#4cff56" font-size="10">Lane direction</text>
+                        <text x="240" y="108" fill="#666" font-size="9">East (0°)</text>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Headways first -->
+            <div class="hp">
+                <div class="hp-text">
+                    <b>Headways first</b> — when checked, the tractor drives the headway
+                    rings before entering the interior lanes. When unchecked, lanes are
+                    driven first and headways last.
+                </div>
+            </div>
+
+            <!-- Gate -->
+            <div class="hp">
+                <div class="hp-text">
+                    <b>Gate (entry point)</b> — click on the map to place the field
+                    entry/exit point. The route starts and ends at this point.
+                    If omitted, the first vertex of the boundary is used.
+                </div>
+            </div>
+
+            <!-- ============ ADVANCED PARAMETERS ============ -->
+            <h3>🔧 Advanced Parameters</h3>
+
+            <!-- Lane-headway gap -->
+            <div class="hp">
+                <div class="hp-text">
+                    <b>Lane-headway gap (m)</b> — extra clearance between the innermost
+                    headway ring and the start/end of the interior lanes.
+                    Use this to avoid collisions with headway traffic.<br>Default: <b>0 m</b>
+                </div>
+                <div class="hp-fig">
+                    <svg viewBox="0 0 280 120" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="10" y="10" width="260" height="100" rx="6" fill="#1a2744" stroke="#0f3460" />
+                        <rect x="20" y="20" width="240" height="80" rx="5" fill="none" stroke="#56b4ff"
+                            stroke-width="2" />
+                        <line x1="60" y1="35" x2="60" y2="85" stroke="#4cff56" stroke-width="2" />
+                        <line x1="140" y1="35" x2="140" y2="85" stroke="#4cff56" stroke-width="2" />
+                        <line x1="220" y1="35" x2="220" y2="85" stroke="#4cff56" stroke-width="2" />
+                        <line x1="60" y1="85" x2="60" y2="100" stroke="#ff8c00" stroke-width="1.5"
+                            stroke-dasharray="3,2" />
+                        <text x="74" y="96" fill="#ff8c00" font-size="8">L-H gap</text>
+                        <text x="140" y="14" fill="#56b4ff" font-size="9" text-anchor="middle">Inner headway</text>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Lane boundary offset -->
+            <div class="hp">
+                <div class="hp-text">
+                    <b>Lane boundary offset (m)</b> — additional inward offset applied to
+                    the boundary before clipping lanes. Prevents the implement from
+                    touching the boundary edge.<br>Default: <b>0 m</b>
+                </div>
+            </div>
+
+            <!-- Smoothing parameters -->
+            <div class="hp">
+                <div class="hp-text">
+                    <b>Smooth angle tol.</b> — angle threshold (radians) below which
+                    corners in the route are smoothed with circular arcs.<br>Default: <b>0.5</b><br><br>
+                    <b>Smooth segments</b> — number of arc segments used to approximate
+                    each smoothed corner.<br>Default: <b>8</b><br><br>
+                    <b>Smooth tol. dist. (m)</b> — max distance the smoothed arc may
+                    deviate from the original corner point.<br>Default: <b>5 m</b><br><br>
+                    <b>Smooth simplify (m)</b> — Douglas-Peucker simplification tolerance
+                    applied to each route segment before smoothing.<br>Default: <b>2 m</b>
+                </div>
+                <div class="hp-fig">
+                    <svg viewBox="0 0 280 120" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="10" y="10" width="260" height="100" rx="6" fill="#1a2744" stroke="#0f3460" />
+                        <polyline points="30,90 130,30 250,90" fill="none" stroke="#666" stroke-width="1.5"
+                            stroke-dasharray="4,3" />
+                        <path d="M 30,90 Q 80,60 110,40 C 125,30 138,30 155,42 Q 185,62 250,90" fill="none"
+                            stroke="#ff6600" stroke-width="2.5" />
+                        <circle cx="130" cy="30" r="3" fill="#ffdd57" />
+                        <text x="138" y="26" fill="#ffdd57" font-size="9">corner</text>
+                        <text x="190" y="52" fill="#ff6600" font-size="9">smoothed</text>
+                        <text x="50" y="82" fill="#666" font-size="9">original</text>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Elevation contours -->
+            <h3>🗻 Elevation Contour Parameters</h3>
+            <div class="hp">
+                <div class="hp-text">
+                    <b>Use elevation contours</b> — when enabled, lanes follow terrain
+                    contours instead of straight parallel lines. This reduces erosion
+                    risk on sloped fields and can lower fuel consumption.<br><br>
+                    <b>Contours gap (m)</b> — vertical elevation difference between
+                    adjacent contour lines extracted from the DEM.<br>Default: <b>1 m</b><br><br>
+                    <b>Contour levels</b> — number of contour levels. Leave blank for
+                    <b>auto</b> (derived from elevation range ÷ contours gap).
+                </div>
+                <div class="hp-fig">
+                    <svg viewBox="0 0 280 160" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="10" y="10" width="260" height="140" rx="6" fill="#1a2744" stroke="#0f3460" />
+                        <!-- contour lines -->
+                        <path d="M 30,130 Q 80,120 140,125 Q 200,130 260,120" fill="none" stroke="#a0522d"
+                            stroke-width="1.2" stroke-dasharray="4,3" />
+                        <path d="M 30,105 Q 90,90 150,95 Q 210,100 260,92" fill="none" stroke="#a0522d"
+                            stroke-width="1.2" stroke-dasharray="4,3" />
+                        <path d="M 40,78 Q 100,62 160,68 Q 220,74 255,65" fill="none" stroke="#a0522d"
+                            stroke-width="1.2" stroke-dasharray="4,3" />
+                        <path d="M 55,52 Q 110,38 170,44 Q 225,50 250,42" fill="none" stroke="#a0522d"
+                            stroke-width="1.2" stroke-dasharray="4,3" />
+                        <!-- selected contour -->
+                        <path d="M 30,105 Q 90,90 150,95 Q 210,100 260,92" fill="none" stroke="#ffdd57"
+                            stroke-width="2.5" />
+                        <!-- lane offsets from selected -->
+                        <path d="M 30,130 Q 80,120 140,125 Q 200,130 260,120" fill="none" stroke="#4cff56"
+                            stroke-width="1.5" />
+                        <path d="M 40,78 Q 100,62 160,68 Q 220,74 255,65" fill="none" stroke="#4cff56"
+                            stroke-width="1.5" />
+                        <path d="M 55,52 Q 110,38 170,44 Q 225,50 250,42" fill="none" stroke="#4cff56"
+                            stroke-width="1.5" />
+                        <!-- labels -->
+                        <text x="262" y="90" fill="#ffdd57" font-size="8">selected</text>
+                        <text x="262" y="118" fill="#4cff56" font-size="8">lane</text>
+                        <text x="262" y="63" fill="#4cff56" font-size="8">lane</text>
+                        <text x="140" y="24" fill="#a0522d" font-size="10" text-anchor="middle">Contour lines from
+                            DEM</text>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- ============ SUSTAINABILITY ============ -->
+            <h3>🌱 Sustainability Inputs</h3>
+            <div class="hp">
+                <div class="hp-text">
+                    <b>Fuel rate (L/km)</b> — fuel consumed per km of travel.<br>Default: <b>0.35</b><br><br>
+                    <b>Fuel price (€/L)</b> — cost per litre of fuel.<br>Default: <b>1.50</b><br><br>
+                    <b>CO₂ per L fuel (kg)</b> — kg of CO₂ emitted per litre of fuel burned.<br>Default:
+                    <b>2.65</b><br><br>
+                    <b>Machine weight (t)</b> — total weight of tractor + implement (tonnes).
+                    Used for ground-pressure / compaction estimation.<br>Default: <b>8 t</b><br><br>
+                    <b>Tyre width (m)</b> — width of one tyre. Used to compute
+                    tyre-track coverage area and soil compaction.<br>Default: <b>0.6 m</b><br><br>
+                    <b>Speed (km/h)</b> — average field speed. Used to estimate
+                    total field time.<br>Default: <b>8 km/h</b>
+                </div>
+            </div>
+
+            <!-- ============ VIEWER CONTROLS ============ -->
+            <h3>🎮 Viewer Controls</h3>
+            <div class="hp">
+                <div class="hp-text">
+                    <b>Background</b> — switch between satellite <b>Imagery</b>,
+                    <b>Map</b> (OpenStreetMap), or <b>None</b> (dark background).<br><br>
+                    <b>Checkboxes</b> — toggle layer visibility on the map:
+                    Lanes+Headways, Smoothed route, Boundary, Contours, Selected contour.<br><br>
+                    <b>Play / Pause</b> — animate the tractor along the smoothed route.<br>
+                    <b>Speed slider</b> — animation playback speed.<br>
+                    <b>Progress bar</b> — scrub through the animation.<br><br>
+                    <b>Reset View</b> — clears generated paths but keeps the boundary.<br>
+                    <b>Reset All</b> — clears everything including the boundary and gate.
+                </div>
+            </div>
+
+            <!-- ============ OVERVIEW FIGURE ============ -->
+            <h3>📐 Overview: Field Layout</h3>
+            <div class="hp">
+                <div class="hp-fig" style="flex:1;min-width:300px;">
+                    <svg viewBox="0 0 400 280" xmlns="http://www.w3.org/2000/svg">
+                        <!-- boundary -->
+                        <polygon points="20,260 20,20 380,20 380,260" fill="none" stroke="#e94560" stroke-width="2.5"
+                            stroke-dasharray="8,4" />
+                        <!-- headway rings -->
+                        <rect x="40" y="40" width="320" height="200" rx="4" fill="none" stroke="#56b4ff"
+                            stroke-width="2" />
+                        <rect x="60" y="60" width="280" height="160" rx="3" fill="none" stroke="#56b4ff"
+                            stroke-width="1.5" stroke-dasharray="5,3" />
+                        <!-- lanes -->
+                        <line x1="100" y1="70" x2="100" y2="210" stroke="#4cff56" stroke-width="2" />
+                        <line x1="150" y1="70" x2="150" y2="210" stroke="#4cff56" stroke-width="2" />
+                        <line x1="200" y1="70" x2="200" y2="210" stroke="#4cff56" stroke-width="2" />
+                        <line x1="250" y1="70" x2="250" y2="210" stroke="#4cff56" stroke-width="2" />
+                        <line x1="300" y1="70" x2="300" y2="210" stroke="#4cff56" stroke-width="2" />
+                        <!-- lane2lane turns -->
+                        <path d="M 100,210 Q 100,230 125,230 Q 150,230 150,210" fill="none" stroke="#ffd166"
+                            stroke-width="1.5" stroke-dasharray="3,3" />
+                        <path d="M 200,70 Q 200,50 225,50 Q 250,50 250,70" fill="none" stroke="#ffd166"
+                            stroke-width="1.5" stroke-dasharray="3,3" />
+                        <!-- gate -->
+                        <circle cx="20" cy="140" r="7" fill="#e94560" stroke="#fff" stroke-width="1.5" />
+                        <text x="5" y="132" fill="#e94560" font-size="9">Gate</text>
+                        <!-- gate to headway -->
+                        <line x1="20" y1="140" x2="40" y2="140" stroke="#ffdd57" stroke-width="1.5"
+                            stroke-dasharray="3,2" />
+                        <!-- annotations -->
+                        <text x="200" y="14" fill="#e94560" font-size="11" text-anchor="middle">Boundary</text>
+                        <text x="361" y="55" fill="#56b4ff" font-size="9">Headway 1</text>
+                        <text x="341" y="75" fill="#56b4ff" font-size="9">Headway 2</text>
+                        <text x="100" y="268" fill="#4cff56" font-size="9" text-anchor="middle">Lanes</text>
+                        <text x="125" y="244" fill="#ffd166" font-size="8" text-anchor="middle">U-turn</text>
+                        <!-- dimension: headway-border gap -->
+                        <line x1="15" y1="20" x2="15" y2="40" stroke="#ff8c00" stroke-width="1" />
+                        <text x="5" y="34" fill="#ff8c00" font-size="7">bdr</text>
+                        <!-- dimension: lane gap -->
+                        <line x1="100" y1="218" x2="150" y2="218" stroke="#ffdd57" stroke-width="1"
+                            stroke-dasharray="2,2" />
+                        <text x="125" y="216" fill="#ffdd57" font-size="7" text-anchor="middle">lane gap</text>
+                    </svg>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ── Map + sidebar ── -->
+    <div id="mapwrap">
+        <div id="map"></div>
+
+        <div id="sidebar" class="collapsed">
+            <div id="sidebarInner">
+
+                <h3>🖊 Boundary</h3>
+                <button id="btnDraw">Draw polygon on map</button>
+                <button id="btnClearBnd">✕ Clear boundary</button>
+
+                <h3>⚙ Parameters</h3>
+                <div class="param-grid">
+                    <label>Operation type</label>
+                    <select id="p_operation_type"
+                        style="background:#0f3460;color:#eee;border:1px solid #444;border-radius:4px;padding:3px 6px;font-size:0.8rem;width:100%;">
+                        <option value="generic">Generic</option>
+                        <option value="harvesting">Harvesting</option>
+                        <option value="planting">Planting</option>
+                        <option value="application">Application</option>
+                        <option value="tillage">Tillage</option>
+                    </select>
+
+                    <label>Task name</label>
+                    <input type="text" id="p_task_name" value="Field Operation"
+                        style="background:#0f3460;color:#eee;border:1px solid #444;border-radius:4px;padding:3px 6px;font-size:0.8rem;width:100%;" />
+                </div>
+
+                <div class="param-grid" style="margin-top:6px;">
+                    <label>Lane width (m)</label>
+                    <input type="number" id="p_lane_width" value="10" step="0.5" />
+
+                    <label>Headway width (m)</label>
+                    <input type="number" id="p_headway_width" value="5" step="0.5" />
+
+                    <label>Headway-border gap (m)</label>
+                    <input type="number" id="p_headway_bdr_gap" value="5" step="0.5" />
+
+                    <label>Num headways</label>
+                    <input type="number" id="p_headways_num" value="2" min="1" step="1" />
+
+                    <label>Lane orientation (°)</label>
+                    <input type="number" id="p_lane_orientation" placeholder="auto" step="1" />
+
+                    <label>Headways first</label>
+                    <input type="checkbox" id="p_headways_first" checked />
+                </div>
+                <div id="orientHint"></div>
+
+                <button id="advancedToggle">▸ Advanced parameters</button>
+                <div id="advancedParams">
+                    <div class="param-grid">
+                        <label>Lane-headway gap (m)</label>
+                        <input type="number" id="p_lane_headway_gap" value="0" step="0.5" />
+
+                        <label>Lane boundary offset (m)</label>
+                        <input type="number" id="p_lane_boundary_offset" value="0" step="0.5" />
+
+                        <label>Smooth angle tol.</label>
+                        <input type="number" id="p_smooth_ang_tolerance" value="0.5" step="0.1" />
+
+                        <label>Smooth segments</label>
+                        <input type="number" id="p_smooth_segments" value="8" min="1" step="1" />
+
+                        <label>Smooth tol. dist. (m)</label>
+                        <input type="number" id="p_smooth_tolerance_distance" value="5" step="0.5" />
+
+                        <label>Smooth simplify (m)</label>
+                        <input type="number" id="p_smooth_input_line_simplify_m" value="2" step="0.5" />
+
+                        <label>Use elevation contours</label>
+                        <input type="checkbox" id="p_use_elevation_contours" />
+
+                        <label>Contours gap (m)</label>
+                        <input type="number" id="p_contours_gap" value="1" step="0.5" />
+
+                        <label>Contour levels</label>
+                        <input type="number" id="p_contours_n_levels" placeholder="auto" step="1" />
+                    </div>
+                </div>
+
+                <h3>📍 Gate (entry point)</h3>
+                <button id="btnPickGate">Click map to place gate</button>
+                <button id="btnClearGate">✕ Clear gate</button>
+
+                <button id="btnGenerate">▶ Generate paths</button>
+                <div id="genStatus"></div>
+
+                <h3>📥 Downloads</h3>
+                <div class="dl-section">
+                    <button class="dl-btn isoxml" id="dlIsoxml" disabled>⬇ ISOXML (TASKDATA.XML)</button>
+                    <button class="dl-btn" id="dlRoutes" disabled>⬇ routes.geojson</button>
+                    <button class="dl-btn" id="dlLanes" disabled>⬇ lanes.geojson</button>
+                    <button class="dl-btn" id="dlSmoothed" disabled>⬇ path_smoothed.geojson</button>
+                    <button class="dl-btn" id="dlContours" disabled>⬇ contours.geojson</button>
+                    <button class="dl-btn" id="dlSelContour" disabled>⬇ selected_contour.geojson</button>
+                    <button class="dl-btn" id="dlBoundary" disabled>⬇ boundary.geojson</button>
+                </div>
+
+                <h3>✏️ Edit Selected Contour</h3>
+                <div class="contour-edit-section">
+                    <button id="btnEditContour">✏️ Edit existing contour</button>
+                    <button id="btnDrawContour">🖊 Draw new contour</button>
+                    <button id="btnClearEditedContour">✕ Clear edited contour</button>
+                    <button id="btnRecalcContour" disabled>🔄 Recalculate with edited contour</button>
+                    <div id="contourEditStatus"></div>
+                </div>
+
+                <h3>🌱 Sustainability inputs</h3>
+                <div class="param-grid">
+                    <label>Fuel rate (L/km)</label>
+                    <input type="number" id="p_fuel_rate" value="0.35" step="0.01" />
+
+                    <label>Fuel price (€/L)</label>
+                    <input type="number" id="p_fuel_price" value="1.50" step="0.01" />
+
+                    <label>CO₂ per L fuel (kg)</label>
+                    <input type="number" id="p_co2_per_litre" value="2.65" step="0.01" />
+
+                    <label>Machine weight (t)</label>
+                    <input type="number" id="p_machine_weight" value="8" step="0.5" />
+
+                    <label>Tyre width (m)</label>
+                    <input type="number" id="p_tyre_width" value="0.6" step="0.05" />
+
+                    <label>Speed (km/h)</label>
+                    <input type="number" id="p_field_speed" value="8" step="0.5" />
+                </div>
+
+                <h3>📂 Or load files</h3>
+                <div class="file-btn">
+                    <input type="file" id="fileRoutes" accept=".geojson,.json" />
+                    <span id="lblRoutes">Load routes.geojson</span>
+                </div>
+                <div class="file-btn">
+                    <input type="file" id="fileLanes" accept=".geojson,.json" />
+                    <span id="lblLanes">Load lanes.geojson (opt.)</span>
+                </div>
+                <div class="file-btn">
+                    <input type="file" id="fileBoundary" accept=".geojson,.json" />
+                    <span id="lblBoundary">Load boundary.geojson (opt.)</span>
+                </div>
+                <div class="file-btn">
+                    <input type="file" id="fileContours" accept=".geojson,.json" />
+                    <span id="lblContours">Load contours.geojson (opt.)</span>
+                </div>
+                <div class="file-btn">
+                    <input type="file" id="fileSelectedContour" accept=".geojson,.json" />
+                    <span id="lblSelectedContour">Load selected_contour.geojson (opt.)</span>
+                </div>
+
+                <div class="file-btn">
+                    <input type="file" id="fileEditedContourUpload" accept=".geojson,.json" />
+                    <span id="lblEditedContour">Load edited contour (opt.)</span>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats panel (bottom-left, shown after generation) -->
+    <div id="statsPanel">
+        <h4>📊 Path Statistics</h4>
+        <div id="statsContent"></div>
+    </div>
+
+    <script>
+        // =============================================================
+        // Server base URL
+        // AWS API Gateway endpoint for machinery path computation.
+        // =============================================================
+        const API_BASE = 'https://frvggxm25e.execute-api.eu-central-1.amazonaws.com/default';
+
+        // =============================================================
+        // Map setup
+        // =============================================================
+        const map = L.map('map', { zoomControl: true });
+
+        // Background tile layers
+        const imageryLayer = L.tileLayer(
+            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+            { attribution: 'Tiles © Esri', maxZoom: 22 }
+        );
+        const imageryLabels = L.tileLayer(
+            'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+            { attribution: '', opacity: 0.6, maxZoom: 22 }
+        );
+        const mapLayer = L.tileLayer(
+            'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            { attribution: '© OpenStreetMap', maxZoom: 19 }
+        );
+
+        // Start with imagery
+        imageryLayer.addTo(map);
+        imageryLabels.addTo(map);
+
+        document.getElementById('selBackground').onchange = function () {
+            map.removeLayer(imageryLayer);
+            map.removeLayer(imageryLabels);
+            map.removeLayer(mapLayer);
+            if (this.value === 'imagery') {
+                imageryLayer.addTo(map);
+                imageryLabels.addTo(map);
+            } else if (this.value === 'map') {
+                mapLayer.addTo(map);
+            }
+            // 'none' → no tiles added
+        };
+
+        map.setView([50, 10], 15);
+
+        // =============================================================
+        // Sidebar toggle
+        // =============================================================
+        const sidebar = document.getElementById('sidebar');
+        document.getElementById('sidebarToggle').onclick = () => {
+            sidebar.classList.toggle('collapsed');
+            setTimeout(() => map.invalidateSize(), 260);
+        };
+
+        // =============================================================
+        // Leaflet Draw – boundary drawing
+        // =============================================================
+        const drawnItems = new L.FeatureGroup().addTo(map);
+        const drawControl = new L.Control.Draw({
+            draw: {
+                polygon: { shapeOptions: { color: '#e94560', fillOpacity: 0.15, weight: 2.5 } },
+                polyline: false, rectangle: false, circle: false,
+                circlemarker: false, marker: false,
+            },
+            edit: { featureGroup: drawnItems },
+        });
+
+        let drawingActive = false;
+        let currentDrawHandler = null;
+
+        document.getElementById('btnDraw').onclick = () => {
+            if (drawingActive) {
+                if (currentDrawHandler) { currentDrawHandler.disable(); currentDrawHandler = null; }
+                drawingActive = false;
+                document.getElementById('btnDraw').classList.remove('active');
+                document.getElementById('btnDraw').textContent = 'Draw polygon on map';
+            } else {
+                drawingActive = true;
+                document.getElementById('btnDraw').classList.add('active');
+                document.getElementById('btnDraw').textContent = '⏹ Stop drawing';
+                currentDrawHandler = new L.Draw.Polygon(map, drawControl.options.draw.polygon);
+                currentDrawHandler.enable();
+            }
+        };
+
+        // L.Draw.Event.CREATED is handled in the unified handler below (after contour edit section)
+
+        document.getElementById('btnClearBnd').onclick = () => {
+            drawnItems.clearLayers();
+            document.getElementById('genStatus').textContent = '';
+        };
+
+        // =============================================================
+        // Gate picker + Orientation arrow
+        // =============================================================
+        let gateLatLng = null;
+        let gateMarker = null;
+        let orientArrow = null;
+        let pickingGate = false;
+
+        document.getElementById('btnPickGate').onclick = () => {
+            if (pickingGate) {
+                // Cancel pick mode
+                pickingGate = false;
+                map.off('click', handleGateClick);
+                document.getElementById('btnPickGate').classList.remove('active');
+                document.getElementById('btnPickGate').textContent = 'Click map to place gate';
+                map.getContainer().style.cursor = '';
+            } else {
+                pickingGate = true;
+                document.getElementById('btnPickGate').classList.add('active');
+                document.getElementById('btnPickGate').textContent = '⏹ Cancel';
+                map.getContainer().style.cursor = 'crosshair';
+                // Register AFTER current event loop so the button click itself
+                // doesn't fire the handler at [0,0].
+                setTimeout(() => map.once('click', handleGateClick), 50);
+            }
+        };
+
+        function handleGateClick(e) {
+            // Store as plain numbers, not as a LatLng object
+            gateLatLng = { lat: e.latlng.lat, lng: e.latlng.lng };
+            if (gateMarker) map.removeLayer(gateMarker);
+            gateMarker = L.circleMarker([gateLatLng.lat, gateLatLng.lng], {
+                radius: 9, color: '#e94560', fillColor: '#e94560',
+                fillOpacity: 0.9, weight: 2
+            }).addTo(map).bindTooltip('🚪 Gate', { permanent: true, direction: 'top', offset: [0, -10] });
+            pickingGate = false;
+            document.getElementById('btnPickGate').classList.remove('active');
+            document.getElementById('btnPickGate').textContent = 'Click map to place gate';
+            map.getContainer().style.cursor = '';
+        }
+
+        document.getElementById('btnClearGate').onclick = () => {
+            gateLatLng = null;
+            if (gateMarker) { map.removeLayer(gateMarker); gateMarker = null; }
+            if (pickingGate) {
+                pickingGate = false;
+                map.off('click', handleGateClick);
+                document.getElementById('btnPickGate').classList.remove('active');
+                document.getElementById('btnPickGate').textContent = 'Click map to place gate';
+                map.getContainer().style.cursor = '';
+            }
+        };
+
+        function updateOrientArrow() {
+            if (orientArrow) { map.removeLayer(orientArrow); orientArrow = null; }
+            const val = document.getElementById('p_lane_orientation').value.trim();
+            const hint = document.getElementById('orientHint');
+            if (!val) { hint.textContent = ''; return; }
+            const angle = parseFloat(val);
+            hint.textContent = `Lane direction: ${angle}° from east`;
+
+            const layers = drawnItems.getLayers();
+            if (layers.length === 0) return;
+
+            const coords = layers[0].toGeoJSON().geometry.coordinates[0];
+            let sumLon = 0, sumLat = 0;
+            coords.forEach(c => { sumLon += c[0]; sumLat += c[1]; });
+            const cLon = sumLon / coords.length;
+            const cLat = sumLat / coords.length;
+
+            let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
+            coords.forEach(c => {
+                if (c[0] < minLon) minLon = c[0]; if (c[0] > maxLon) maxLon = c[0];
+                if (c[1] < minLat) minLat = c[1]; if (c[1] > maxLat) maxLat = c[1];
+            });
+            const ext = Math.max(maxLon - minLon, maxLat - minLat) * 0.65;
+            const rad = angle * Math.PI / 180;
+            const cosLat = Math.cos(cLat * Math.PI / 180) || 1;
+            const dLon = Math.cos(rad) * ext / cosLat;
+            const dLat = Math.sin(rad) * ext;
+
+            const tip = [cLat + dLat, cLon + dLon];
+            const tail = [cLat - dLat, cLon - dLon];
+            const hSize = ext * 0.18;
+            const hRad = rad + Math.PI;
+            const l1 = [tip[0] + Math.sin(hRad - 0.4) * hSize,
+            tip[1] + Math.cos(hRad - 0.4) * hSize / cosLat];
+            const l2 = [tip[0] + Math.sin(hRad + 0.4) * hSize,
+            tip[1] + Math.cos(hRad + 0.4) * hSize / cosLat];
+
+            const style = { color: '#ffdd57', weight: 3, opacity: 0.9 };
+            orientArrow = L.layerGroup([
+                L.polyline([tail, tip], { ...style, dashArray: '10,6' }),
+                L.polyline([l1, tip, l2], style),
+            ]).addTo(map);
+        }
+
+        document.getElementById('p_lane_orientation').addEventListener('input', updateOrientArrow);
+
+        // Help modal
+        document.getElementById('btnHelp').onclick = () => document.getElementById('helpOverlay').classList.add('visible');
+        document.getElementById('btnCloseHelp').onclick = () => document.getElementById('helpOverlay').classList.remove('visible');
+        document.getElementById('helpOverlay').onclick = e => { if (e.target === e.currentTarget) e.currentTarget.classList.remove('visible'); };
+        // Also refresh arrow when boundary is drawn (hooked in unified CREATED handler)
+
+        // =============================================================
+        // Generate paths via backend
+        // =============================================================
+        document.getElementById('btnGenerate').onclick = async () => {
+            const layers = drawnItems.getLayers();
+            if (layers.length === 0) {
+                document.getElementById('genStatus').textContent = '⚠ Draw a boundary first.';
+                return;
+            }
+
+            const boundaryGeoJSON = layers[0].toGeoJSON();  // Feature with Polygon geometry
+
+            const orientVal = document.getElementById('p_lane_orientation').value.trim();
+            const params = {
+                lane_width: parseFloat(document.getElementById('p_lane_width').value),
+                headway_width: parseFloat(document.getElementById('p_headway_width').value),
+                headway_bdr_gap: parseFloat(document.getElementById('p_headway_bdr_gap').value),
+                headways_num: parseInt(document.getElementById('p_headways_num').value),
+                lane_boundary_offset: parseFloat(document.getElementById('p_lane_boundary_offset').value),
+                lane_headway_gap: parseFloat(document.getElementById('p_lane_headway_gap').value),
+                lane_orientation: orientVal !== '' ? parseFloat(orientVal) : null,
+                headways_first: document.getElementById('p_headways_first').checked,
+                smooth_ang_tolerance: parseFloat(document.getElementById('p_smooth_ang_tolerance').value),
+                smooth_segments: parseInt(document.getElementById('p_smooth_segments').value),
+                smooth_tolerance_distance: parseFloat(document.getElementById('p_smooth_tolerance_distance').value),
+                smooth_input_line_simplify_m: parseFloat(document.getElementById('p_smooth_input_line_simplify_m').value),
+                use_elevation_contours: document.getElementById('p_use_elevation_contours').checked,
+                contours_gap: parseFloat(document.getElementById('p_contours_gap').value),
+                contours_n_levels: document.getElementById('p_contours_n_levels').value.trim() !== '' ? parseInt(document.getElementById('p_contours_n_levels').value) : null,
+                operation_type: document.getElementById('p_operation_type').value,
+                task_name: document.getElementById('p_task_name').value.trim() || 'Field Operation',
+            };
+
+            const gate = gateLatLng ? [gateLatLng.lng, gateLatLng.lat] : null;
+
+            // Build selected_contour payload if user edited/drew one
+            let selectedContourPayload = null;
+            if (editedContourLayer && editedContourLayer.getLayers().length > 0) {
+                selectedContourPayload = editedContourLayer.toGeoJSON();
+            }
+
+            const statusEl = document.getElementById('genStatus');
+            statusEl.textContent = '⏳ Running…';
+            document.getElementById('btnGenerate').disabled = true;
+
+            try {
+                const resp = await fetch(`${API_BASE}/run`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        boundary: boundaryGeoJSON,
+                        params,
+                        gate,
+                        selected_contour: selectedContourPayload,
+                    }),
+                });
+
+                const rawText = await resp.text();
+                console.log('Raw server response (first 2000 chars):', rawText.substring(0, 2000));
+
+                if (!resp.ok) {
+                    let detail = rawText;
+                    try { detail = JSON.parse(rawText).detail || rawText; } catch (_) { }
+                    throw new Error(detail);
+                }
+
+                const data = JSON.parse(rawText);
+                console.log('Server response keys:', Object.keys(data));
+                console.log('routes:', JSON.stringify(data.routes).substring(0, 300));
+                console.log('lanes:', JSON.stringify(data.lanes).substring(0, 300));
+                console.log('path_smoothed:', JSON.stringify(data.path_smoothed).substring(0, 300));
+
+                // Clear existing result layers
+                clearTrail();
+                stepIdx = 0;
+                progressSlider.value = 0;
+                progressLabel.textContent = '0 %';
+                if (machinery) { map.removeLayer(machinery); machinery = null; }
+
+                // Add routes to map
+                try {
+                    if (data.routes && data.routes.features && data.routes.features.length > 0) {
+                        addGeoJSONRoutes(data.routes);
+                    }
+                } catch (e2) { console.error('addGeoJSONRoutes failed:', e2); }
+
+                // Add lanes to map
+                try {
+                    if (data.lanes && data.lanes.features && data.lanes.features.length > 0) {
+                        addGeoJSONLanes(data.lanes);
+                    }
+                } catch (e2) { console.error('addGeoJSONLanes failed:', e2); }
+
+                // Add contours to map
+                try {
+                    if (data.contours && data.contours.features && data.contours.features.length > 0) {
+                        addGeoJSONContours(data.contours);
+                    }
+                } catch (e2) { console.error('addGeoJSONContours failed:', e2); }
+
+                // Add selected contour to map
+                try {
+                    if (data.selected_contour && data.selected_contour.features && data.selected_contour.features.length > 0) {
+                        addGeoJSONSelectedContour(data.selected_contour);
+                    }
+                } catch (e2) { console.error('addGeoJSONSelectedContour failed:', e2); }
+
+                // Build animation from the smoothed single-LineString path
+                try {
+                    if (data.path_smoothed && data.path_smoothed.features && data.path_smoothed.features.length > 0) {
+                        buildAnimationPathFromSmoothed(data.path_smoothed);
+                        addGeoJSONSmoothed(data.path_smoothed);
+                        initMachinery();
+                    } else {
+                        console.warn('path_smoothed is empty or missing');
+                    }
+                } catch (e2) { console.error('buildAnimationPathFromSmoothed failed:', e2); }
+
+                console.log('animPath pts:', animPath.length);
+                const nRoutes = data.routes?.features?.length || 0;
+                statusEl.textContent = `✅ Done — ${nRoutes} route segments.`;
+
+                // Store response data for downloads
+                lastResponseData = data;
+                enableDownloadButtons(data);
+
+                // Show statistics
+                if (data.stats) {
+                    displayStats(data.stats, data.routes);
+                }
+            } catch (e) {
+                console.error('Generate error:', e);
+                statusEl.textContent = '❌ ' + e.message;
+            } finally {
+                document.getElementById('btnGenerate').disabled = false;
+            }
+        };
+
+        // =============================================================
+        // Trail canvas  – transparent paint that accumulates on re-passes
+        // =============================================================
+        const trailCanvas = document.createElement('canvas');
+        trailCanvas.style.cssText =
+            'position:absolute;top:0;left:0;pointer-events:none;z-index:450;';
+        map.getContainer().appendChild(trailCanvas);
+        const trailCtx = trailCanvas.getContext('2d');
+        let trailPts = [];   // [lat,lon] points added so far
+
+        function resizeTrailCanvas() {
+            const sz = map.getSize();
+            trailCanvas.width = sz.x;
+            trailCanvas.height = sz.y;
+        }
+        resizeTrailCanvas();
+
+        function drawTrailSegment(a, b) {
+            const p0 = map.latLngToContainerPoint(a);
+            const p1 = map.latLngToContainerPoint(b);
+            trailCtx.strokeStyle = 'rgba(220, 30, 30, 0.28)';
+            trailCtx.lineWidth = 10;
+            trailCtx.lineCap = 'round';
+            trailCtx.beginPath();
+            trailCtx.moveTo(p0.x, p0.y);
+            trailCtx.lineTo(p1.x, p1.y);
+            trailCtx.stroke();
+        }
+
+        function redrawTrail() {
+            trailCtx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
+            for (let i = 1; i < trailPts.length; i++) {
+                drawTrailSegment(trailPts[i - 1], trailPts[i]);
+            }
+        }
+
+        function clearTrail() {
+            trailPts = [];
+            trailCtx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
+        }
+
+        // Keep canvas aligned after pan / zoom
+        map.on('moveend zoomend', () => { resizeTrailCanvas(); redrawTrail(); });
+        map.on('movestart', () => { trailCanvas.style.visibility = 'hidden'; });
+        map.on('moveend zoomend', () => { trailCanvas.style.visibility = ''; });
+
+        // =============================================================
+        // Route type → colour mapping
+        // =============================================================
+        const TYPE_STYLE = {
+            lane: { color: '#4cff56', weight: 3, opacity: 0.95 },
+            headway: { color: '#56b4ff', weight: 2.5, opacity: 0.85, dashArray: '6,4' },
+            ring_bdr: { color: '#56b4ff', weight: 2.5, opacity: 0.85, dashArray: '6,4' },
+            entry2headway: { color: '#ffdd57', weight: 2, opacity: 0.9, dashArray: '4,4' },
+            headway2headway: { color: '#c39bd3', weight: 2, opacity: 0.9, dashArray: '4,4' },
+            ring_section: { color: '#85c1e9', weight: 2, opacity: 0.8, dashArray: '3,5' },
+            ring2lane: { color: '#ff8c00', weight: 2.5, opacity: 0.95 },
+            lane2lane: { color: '#ffd166', weight: 2, opacity: 0.85, dashArray: '2,5' },
+            line2ring: { color: '#ff6b8a', weight: 2, opacity: 0.85, dashArray: '2,5' },
+            _default: { color: '#ffffff', weight: 2, opacity: 0.7 },
+        };
+
+        function styleFor(type) {
+            return TYPE_STYLE[type] || TYPE_STYLE._default;
+        }
+
+        // =============================================================
+        // GeoJSON → Leaflet helpers
+        // =============================================================
+        let routesLayer = null;
+        let lanesLayer = null;
+        let boundaryLayer = null;
+        let smoothedLayer = null;
+        let contoursLayer = null;
+        let selectedContourLayer = null;
+
+        function coordsToLatLng(c) {
+            // GeoJSON is [lon, lat]; Leaflet expects [lat, lon]
+            return [c[1], c[0]];
+        }
+
+        function addGeoJSONRoutes(geojson) {
+            if (routesLayer) map.removeLayer(routesLayer);
+            routesLayer = L.geoJSON(geojson, {
+                style: feature => styleFor(feature.properties.type),
+                onEachFeature(feature, layer) {
+                    const t = feature.properties.type || 'unknown';
+                    layer.bindTooltip(t, { sticky: true, opacity: 0.8 });
+                }
+            }).addTo(map);
+
+            map.fitBounds(routesLayer.getBounds(), { padding: [30, 30] });
+        }
+
+        function addGeoJSONLanes(geojson) {
+            if (lanesLayer) map.removeLayer(lanesLayer);
+            lanesLayer = L.geoJSON(geojson, {
+                style: feature => styleFor(feature.properties.type),
+            }).addTo(map);
+        }
+
+        function addGeoJSONBoundary(geojson) {
+            if (boundaryLayer) map.removeLayer(boundaryLayer);
+            boundaryLayer = L.geoJSON(geojson, {
+                style: { color: '#e94560', weight: 2.5, fillOpacity: 0.05, dashArray: '8,4' }
+            }).addTo(map);
+        }
+
+        function addGeoJSONSmoothed(geojson) {
+            if (smoothedLayer) map.removeLayer(smoothedLayer);
+            smoothedLayer = L.geoJSON(geojson, {
+                style: { color: '#ff6600', weight: 3, opacity: 0.9 },
+            }).addTo(map);
+            map.fitBounds(smoothedLayer.getBounds(), { padding: [30, 30] });
+        }
+
+        function addGeoJSONContours(geojson) {
+            if (contoursLayer) map.removeLayer(contoursLayer);
+            contoursLayer = L.geoJSON(geojson, {
+                style: { color: '#a0522d', weight: 1.2, opacity: 0.7, dashArray: '4,3' },
+                onEachFeature(feature, layer) {
+                    const elev = feature.properties && feature.properties.elevation;
+                    if (elev != null) {
+                        const label = elev.toFixed(1) + ' m';
+                        layer.bindTooltip(label, { sticky: false, opacity: 0.9, permanent: true, direction: 'center', className: 'contour-label' });
+                    }
+                }
+            }).addTo(map);
+        }
+
+        function addGeoJSONSelectedContour(geojson) {
+            if (selectedContourLayer) map.removeLayer(selectedContourLayer);
+            selectedContourLayer = L.geoJSON(geojson, {
+                style: { color: '#ffdd57', weight: 3, opacity: 0.95 },
+                onEachFeature(feature, layer) {
+                    const elev = feature.properties && feature.properties.elevation;
+                    if (elev != null) {
+                        const label = '⭐ ' + elev.toFixed(1) + ' m';
+                        layer.bindTooltip(label, { sticky: false, opacity: 1, permanent: true, direction: 'center', className: 'contour-label contour-label-selected' });
+                    }
+                }
+            }).addTo(map);
+        }
+
+        // =============================================================
+        // Build a dense animation path from ordered route features
+        // =============================================================
+        let animPath = [];       // [ [lat,lon], … ]  dense
+        let animDists = [];      // cumulative metric distance at each point
+        let totalDist = 0;
+
+        function buildAnimationPath(features) {
+            animPath = [];
+            animDists = [];
+            totalDist = 0;
+
+            // Convert GeoJSON [lon, lat] array to Leaflet [lat, lon]
+            function toLL(c) { return coordsToLatLng(c); }
+
+            // Euclidean distance between two [lat,lon] points (degrees — fine for
+            // orientation checks; haversine is used for cumulative distance).
+            function llDist(a, b) {
+                return Math.hypot(a[0] - b[0], a[1] - b[1]);
+            }
+
+            features.forEach(f => {
+                const geom = f.geometry;
+                if (!geom) return;
+                let segments = [];
+                if (geom.type === 'LineString') segments = [geom.coordinates];
+                else if (geom.type === 'MultiLineString') segments = geom.coordinates;
+
+                segments.forEach(coords => {
+                    if (!coords || coords.length < 2) return;
+
+                    let pts = coords.map(toLL);
+
+                    // ── Orientation fix ──────────────────────────────────────────────
+                    // If we already have a path, check whether this segment needs to be
+                    // reversed so that its first vertex is the one closest to the last
+                    // point already in animPath (handles ring_sections stored backwards).
+                    if (animPath.length > 0) {
+                        const tail = animPath[animPath.length - 1];
+                        const dHead = llDist(tail, pts[0]);
+                        const dTail = llDist(tail, pts[pts.length - 1]);
+                        if (dTail < dHead) pts = pts.slice().reverse();
+                    }
+
+                    // ── Deduplication ────────────────────────────────────────────────
+                    // Skip the first point if it's a duplicate of the current tail
+                    // (shared endpoint between consecutive features).
+                    const startIdx = (animPath.length > 0 &&
+                        llDist(animPath[animPath.length - 1], pts[0]) < 1e-9)
+                        ? 1 : 0;
+
+                    for (let i = startIdx; i < pts.length; i++) {
+                        const ll = pts[i];
+                        if (animPath.length > 0) {
+                            totalDist += haversine(animPath[animPath.length - 1], ll);
+                        }
+                        animPath.push(ll);
+                        animDists.push(totalDist);
+                    }
+                });
+            });
+
+            // Resample to fixed 1000 steps for smooth animation
+            animPath = resample(animPath, animDists, 1000);
+            animDists = animPath.map((_, i) => i);
+            totalDist = animPath.length - 1;
+        }
+
+        function haversine(a, b) {
+            const R = 6371000;
+            const lat1 = a[0] * Math.PI / 180;
+            const lat2 = b[0] * Math.PI / 180;
+            const dLat = (b[0] - a[0]) * Math.PI / 180;
+            const dLon = (b[1] - a[1]) * Math.PI / 180;
+            const x = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+            return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+        }
+
+        function resample(pts, dists, N) {
+            if (pts.length === 0) return [];
+            const result = [];
+            const maxD = dists[dists.length - 1];
+            for (let i = 0; i <= N; i++) {
+                const target = (i / N) * maxD;
+                // Find nearest index via binary search
+                let lo = 0, hi = dists.length - 1;
+                while (lo < hi) {
+                    const mid = (lo + hi) >> 1;
+                    if (dists[mid] < target) lo = mid + 1;
+                    else hi = mid;
+                }
+                if (lo === 0) { result.push(pts[0]); continue; }
+                const t = (target - dists[lo - 1]) / (dists[lo] - dists[lo - 1] + 1e-9);
+                const lat = pts[lo - 1][0] + t * (pts[lo][0] - pts[lo - 1][0]);
+                const lon = pts[lo - 1][1] + t * (pts[lo][1] - pts[lo - 1][1]);
+                result.push([lat, lon]);
+            }
+            return result;
+        }
+
+        // =============================================================
+        // Build animation path from smoothed (single LineString) path
+        // =============================================================
+        function buildAnimationPathFromSmoothed(geojson) {
+            animPath = [];
+            animDists = [];
+            totalDist = 0;
+            if (!geojson || !geojson.features) return;
+
+            geojson.features.forEach(f => {
+                if (!f.geometry) return;
+                let coords = [];
+                if (f.geometry.type === 'LineString') coords = f.geometry.coordinates;
+                else if (f.geometry.type === 'MultiLineString') {
+                    f.geometry.coordinates.forEach(c => { coords = coords.concat(c); });
+                }
+                coords.forEach(c => {
+                    const ll = [c[1], c[0]];
+                    if (animPath.length > 0) {
+                        totalDist += haversine(animPath[animPath.length - 1], ll);
+                    }
+                    animPath.push(ll);
+                    animDists.push(totalDist);
+                });
+            });
+
+            animPath = resample(animPath, animDists, 1000);
+            animDists = animPath.map((_, i) => i);
+            totalDist = animPath.length - 1;
+        }
+
+        // =============================================================
+        // Machinery marker
+        // =============================================================
+        const tractorIcon = L.divIcon({
+            html: '<div class="tractor-icon">🚜</div>',
+            iconSize: [28, 28],
+            iconAnchor: [14, 14],
+            className: '',
+        });
+
+        let machinery = null;
+
+        function initMachinery() {
+            if (animPath.length === 0) return;
+            if (machinery) map.removeLayer(machinery);
+            machinery = L.marker(animPath[0], {
+                icon: tractorIcon,
+                zIndexOffset: 1000,
+            }).addTo(map);
+        }
+
+        function setMachineryRotation(deg) {
+            const el = machinery && machinery.getElement && machinery.getElement();
+            if (!el) return;
+            const inner = el.querySelector('.tractor-icon');
+            if (inner) inner.style.transform = `rotate(${deg}deg)`;
+        }
+
+        function headingDeg(from, to) {
+            const dLon = (to[1] - from[1]);
+            const dLat = (to[0] - from[0]);
+            const angle = Math.atan2(dLon, dLat) * 180 / Math.PI;
+            return (angle + 360) % 360;
+        }
+
+        // =============================================================
+        // Animation loop
+        // =============================================================
+        let animFrame = null;
+        let stepIdx = 0;
+        let playing = false;
+        let lastTime = null;
+        const progressSlider = document.getElementById('progressBar');
+        const progressLabel = document.getElementById('progressLabel');
+
+        function stepSpeed() {
+            return parseFloat(document.getElementById('speedSlider').value);
+        }
+
+        function animate(ts) {
+            if (!playing) return;
+            if (lastTime === null) lastTime = ts;
+            const elapsed = ts - lastTime;
+            lastTime = ts;
+
+            const stepsPerSec = stepSpeed() * 5;   // steps/sec at speed 1 → 5 pts/s
+            stepIdx += stepsPerSec * elapsed / 1000;
+            if (stepIdx >= animPath.length - 1) {
+                stepIdx = animPath.length - 1;
+                playing = false;
+            }
+            stepIdx = Math.min(stepIdx, animPath.length - 1);
+
+            const idx = Math.floor(stepIdx);
+            const pos = animPath[idx];
+            if (machinery && pos) {
+                machinery.setLatLng(pos);
+                if (idx + 1 < animPath.length) {
+                    setMachineryRotation(headingDeg(pos, animPath[idx + 1]));
+                }
+            }
+
+            // Extend trail incrementally (only paint the newly crossed segments)
+            while (trailPts.length <= idx) {
+                const newPt = animPath[trailPts.length];
+                if (trailPts.length > 0) drawTrailSegment(trailPts[trailPts.length - 1], newPt);
+                trailPts.push(newPt);
+            }
+
+            const pct = Math.round((stepIdx / (animPath.length - 1)) * 100);
+            progressSlider.value = Math.round((stepIdx / (animPath.length - 1)) * 1000);
+            progressLabel.textContent = pct + ' %';
+
+            if (playing) animFrame = requestAnimationFrame(animate);
+        }
+
+        document.getElementById('btnPlay').onclick = () => {
+            if (animPath.length === 0) { alert('No path available. Generate paths first or load a file.'); return; }
+            if (!machinery) initMachinery();
+            playing = true;
+            lastTime = null;
+            animFrame = requestAnimationFrame(animate);
+        };
+
+        document.getElementById('btnPause').onclick = () => {
+            playing = false;
+            if (animFrame) cancelAnimationFrame(animFrame);
+        };
+
+        // =============================================================
+        // Layer visibility checkboxes
+        // =============================================================
+        let showBestRoutes = true, showSmoothed = true, showBnd = true, showContours = true, showSelectedContour = true;
+
+        document.getElementById('chkBestRoutes').onchange = function () {
+            showBestRoutes = this.checked;
+            if (lanesLayer) {
+                if (showBestRoutes && !map.hasLayer(lanesLayer)) lanesLayer.addTo(map);
+                else if (!showBestRoutes && map.hasLayer(lanesLayer)) map.removeLayer(lanesLayer);
+            }
+            if (routesLayer) {
+                if (showBestRoutes && !map.hasLayer(routesLayer)) routesLayer.addTo(map);
+                else if (!showBestRoutes && map.hasLayer(routesLayer)) map.removeLayer(routesLayer);
+            }
+        };
+
+        document.getElementById('chkSmoothed').onchange = function () {
+            showSmoothed = this.checked;
+            if (smoothedLayer) {
+                if (showSmoothed && !map.hasLayer(smoothedLayer)) smoothedLayer.addTo(map);
+                else if (!showSmoothed && map.hasLayer(smoothedLayer)) map.removeLayer(smoothedLayer);
+            }
+            if (machinery) {
+                if (showSmoothed && !map.hasLayer(machinery)) machinery.addTo(map);
+                else if (!showSmoothed && map.hasLayer(machinery)) map.removeLayer(machinery);
+            }
+            trailCanvas.style.display = showSmoothed ? '' : 'none';
+        };
+
+        document.getElementById('chkBoundary').onchange = function () {
+            showBnd = this.checked;
+            if (boundaryLayer) {
+                if (showBnd && !map.hasLayer(boundaryLayer)) boundaryLayer.addTo(map);
+                else if (!showBnd && map.hasLayer(boundaryLayer)) map.removeLayer(boundaryLayer);
+            }
+            if (showBnd && !map.hasLayer(drawnItems)) drawnItems.addTo(map);
+            else if (!showBnd && map.hasLayer(drawnItems)) map.removeLayer(drawnItems);
+        };
+
+        document.getElementById('chkContours').onchange = function () {
+            showContours = this.checked;
+            if (contoursLayer) {
+                if (showContours && !map.hasLayer(contoursLayer)) contoursLayer.addTo(map);
+                else if (!showContours && map.hasLayer(contoursLayer)) map.removeLayer(contoursLayer);
+            }
+        };
+
+        document.getElementById('chkSelectedContour').onchange = function () {
+            showSelectedContour = this.checked;
+            if (selectedContourLayer) {
+                if (showSelectedContour && !map.hasLayer(selectedContourLayer)) selectedContourLayer.addTo(map);
+                else if (!showSelectedContour && map.hasLayer(selectedContourLayer)) map.removeLayer(selectedContourLayer);
+            }
+        };
+
+        // =============================================================
+        // Reset handlers
+        // =============================================================
+        document.getElementById('btnResetView').onclick = () => {
+            playing = false;
+            if (animFrame) cancelAnimationFrame(animFrame);
+            stepIdx = 0;
+            progressSlider.value = 0;
+            progressLabel.textContent = '0 %';
+            if (machinery) { map.removeLayer(machinery); machinery = null; }
+            if (routesLayer) { map.removeLayer(routesLayer); routesLayer = null; }
+            if (lanesLayer) { map.removeLayer(lanesLayer); lanesLayer = null; }
+            if (smoothedLayer) { map.removeLayer(smoothedLayer); smoothedLayer = null; }
+            if (contoursLayer) { map.removeLayer(contoursLayer); contoursLayer = null; }
+            if (selectedContourLayer) { map.removeLayer(selectedContourLayer); selectedContourLayer = null; }
+            clearTrail();
+            animPath = []; animDists = []; totalDist = 0;
+            document.getElementById('genStatus').textContent = '';
+            document.getElementById('statsPanel').classList.remove('visible');
+            lastResponseData = null;
+            disableDownloadButtons();
+            showBestRoutes = true; showSmoothed = true; showContours = true; showSelectedContour = true;
+            document.getElementById('chkBestRoutes').checked = true;
+            document.getElementById('chkSmoothed').checked = true;
+            document.getElementById('chkContours').checked = true;
+            document.getElementById('chkSelectedContour').checked = true;
+        };
+
+        document.getElementById('btnResetAll').onclick = () => {
+            document.getElementById('btnResetView').click();
+            drawnItems.clearLayers();
+            if (boundaryLayer) { map.removeLayer(boundaryLayer); boundaryLayer = null; }
+            gateLatLng = null;
+            if (gateMarker) { map.removeLayer(gateMarker); gateMarker = null; }
+            if (orientArrow) { map.removeLayer(orientArrow); orientArrow = null; }
+            editedContourLayer.clearLayers();
+            document.getElementById('contourEditStatus').textContent = '';
+            document.getElementById('btnRecalcContour').disabled = true;
+            showBnd = true;
+            document.getElementById('chkBoundary').checked = true;
+        };
+
+        // =============================================================
+        // Advanced params toggle
+        // =============================================================
+        document.getElementById('advancedToggle').onclick = () => {
+            const panel = document.getElementById('advancedParams');
+            const btn = document.getElementById('advancedToggle');
+            panel.classList.toggle('open');
+            btn.textContent = panel.classList.contains('open') ? '▾ Advanced parameters' : '▸ Advanced parameters';
+        };
+
+        progressSlider.oninput = () => {
+            const newIdx = Math.floor((parseInt(progressSlider.value) / 1000) * (animPath.length - 1));
+            stepIdx = newIdx;
+            const pos = animPath[newIdx];
+            if (machinery && pos) machinery.setLatLng(pos);
+            progressLabel.textContent = Math.round(parseInt(progressSlider.value) / 10) + ' %';
+
+            // Sync trail to scrubbed position
+            if (newIdx < trailPts.length - 1) {
+                // Scrubbed backward – truncate and redraw
+                trailPts = animPath.slice(0, newIdx + 1);
+                redrawTrail();
+            } else {
+                // Scrubbed forward – fill in any skipped points then redraw
+                while (trailPts.length <= newIdx) trailPts.push(animPath[trailPts.length]);
+                redrawTrail();
+            }
+        };
+
+        // =============================================================
+        // File inputs
+        // =============================================================
+        function readFile(input, onLoad) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = e => {
+                try {
+                    onLoad(JSON.parse(e.target.result));
+                } catch (err) {
+                    alert('Invalid GeoJSON file: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        document.getElementById('fileRoutes').onchange = function () {
+            readFile(this, geojson => {
+                addGeoJSONRoutes(geojson);
+                buildAnimationPath(geojson.features);
+                initMachinery();
+                document.getElementById('lblRoutes').textContent = '✅ ' + this.files[0].name;
+                document.getElementById('lblRoutes').className = 'loaded';
+            });
+        };
+
+        document.getElementById('fileLanes').onchange = function () {
+            readFile(this, geojson => {
+                addGeoJSONLanes(geojson);
+                document.getElementById('lblLanes').textContent = '✅ ' + this.files[0].name;
+                document.getElementById('lblLanes').className = 'loaded';
+            });
+        };
+
+        document.getElementById('fileBoundary').onchange = function () {
+            readFile(this, geojson => {
+                addGeoJSONBoundary(geojson);
+                document.getElementById('lblBoundary').textContent = '✅ ' + this.files[0].name;
+                document.getElementById('lblBoundary').className = 'loaded';
+            });
+        };
+
+        document.getElementById('fileContours').onchange = function () {
+            readFile(this, geojson => {
+                addGeoJSONContours(geojson);
+                document.getElementById('lblContours').textContent = '✅ ' + this.files[0].name;
+                document.getElementById('lblContours').classList.add('loaded');
+            });
+        };
+
+        document.getElementById('fileSelectedContour').onchange = function () {
+            readFile(this, geojson => {
+                addGeoJSONSelectedContour(geojson);
+                document.getElementById('lblSelectedContour').textContent = '✅ ' + this.files[0].name;
+                document.getElementById('lblSelectedContour').classList.add('loaded');
+            });
+        };
+
+        // =============================================================
+        // Statistics display
+        // =============================================================
+        let lastResponseData = null;
+
+        // =============================================================
+        // Download helpers
+        // =============================================================
+        function enableDownloadButtons(data) {
+            document.getElementById('dlIsoxml').disabled = !data.isoxml_b64;
+            document.getElementById('dlRoutes').disabled = !(data.routes && data.routes.features && data.routes.features.length);
+            document.getElementById('dlLanes').disabled = !(data.lanes && data.lanes.features && data.lanes.features.length);
+            document.getElementById('dlSmoothed').disabled = !(data.path_smoothed && data.path_smoothed.features && data.path_smoothed.features.length);
+            document.getElementById('dlContours').disabled = !(data.contours && data.contours.features && data.contours.features.length);
+            document.getElementById('dlSelContour').disabled = !(data.selected_contour && data.selected_contour.features && data.selected_contour.features.length);
+            document.getElementById('dlBoundary').disabled = false;
+        }
+
+        function disableDownloadButtons() {
+            ['dlIsoxml', 'dlRoutes', 'dlLanes', 'dlSmoothed', 'dlContours', 'dlSelContour', 'dlBoundary']
+                .forEach(id => document.getElementById(id).disabled = true);
+        }
+
+        function downloadBlob(blob, filename) {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 100);
+        }
+
+        function downloadGeoJSON(data, filename) {
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/geo+json' });
+            downloadBlob(blob, filename);
+        }
+
+        document.getElementById('dlIsoxml').onclick = () => {
+            if (!lastResponseData || !lastResponseData.isoxml_b64) return;
+            const raw = atob(lastResponseData.isoxml_b64);
+            const bytes = new Uint8Array(raw.length);
+            for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+            downloadBlob(new Blob([bytes], { type: 'application/xml' }), 'TASKDATA.XML');
+        };
+
+        document.getElementById('dlRoutes').onclick = () => {
+            if (lastResponseData?.routes) downloadGeoJSON(lastResponseData.routes, 'routes.geojson');
+        };
+        document.getElementById('dlLanes').onclick = () => {
+            if (lastResponseData?.lanes) downloadGeoJSON(lastResponseData.lanes, 'lanes.geojson');
+        };
+        document.getElementById('dlSmoothed').onclick = () => {
+            if (lastResponseData?.path_smoothed) downloadGeoJSON(lastResponseData.path_smoothed, 'path_smoothed.geojson');
+        };
+        document.getElementById('dlContours').onclick = () => {
+            if (lastResponseData?.contours) downloadGeoJSON(lastResponseData.contours, 'contours.geojson');
+        };
+        document.getElementById('dlSelContour').onclick = () => {
+            if (lastResponseData?.selected_contour) downloadGeoJSON(lastResponseData.selected_contour, 'selected_contour.geojson');
+        };
+        document.getElementById('dlBoundary').onclick = () => {
+            const layers = drawnItems.getLayers();
+            if (layers.length > 0) {
+                const fc = { type: 'FeatureCollection', features: [layers[0].toGeoJSON()] };
+                downloadGeoJSON(fc, 'boundary.geojson');
+            }
+        };
+
+        // =============================================================
+        // Edit / Draw selected contour
+        // =============================================================
+        const editedContourLayer = new L.FeatureGroup().addTo(map);
+        let contourDrawHandler = null;
+        let isDrawingContour = false;
+        let isEditingContour = false;
+        let contourEditControl = null;
+
+        // Make edited contour editable via Leaflet Draw
+        function enableContourEditing() {
+            if (contourEditControl) {
+                contourEditControl.disable();
+            }
+            contourEditControl = new L.EditToolbar.Edit(map, {
+                featureGroup: editedContourLayer,
+            });
+            contourEditControl.enable();
+            isEditingContour = true;
+            document.getElementById('btnEditContour').classList.add('active');
+            document.getElementById('btnEditContour').textContent = '⏹ Stop editing';
+            document.getElementById('contourEditStatus').textContent = 'Drag vertices to reshape the contour.';
+        }
+
+        function disableContourEditing() {
+            if (contourEditControl) {
+                contourEditControl.save();
+                contourEditControl.disable();
+                contourEditControl = null;
+            }
+            isEditingContour = false;
+            document.getElementById('btnEditContour').classList.remove('active');
+            document.getElementById('btnEditContour').textContent = '✏️ Edit existing contour';
+            updateContourEditStatus();
+        }
+
+        // Copy currently displayed selected contour into the editable layer
+        document.getElementById('btnEditContour').onclick = () => {
+            if (isEditingContour) {
+                disableContourEditing();
+                return;
+            }
+
+            // Import from selectedContourLayer if editedContourLayer is empty
+            if (editedContourLayer.getLayers().length === 0 && selectedContourLayer) {
+                selectedContourLayer.eachLayer(layer => {
+                    const geojson = layer.toGeoJSON();
+                    const newLayer = L.geoJSON(geojson, {
+                        style: { color: '#ffdd57', weight: 3.5, opacity: 1, dashArray: '6,3' },
+                    });
+                    newLayer.eachLayer(sub => editedContourLayer.addLayer(sub));
+                });
+                if (editedContourLayer.getLayers().length === 0) {
+                    document.getElementById('contourEditStatus').textContent = '⚠ No selected contour to edit. Generate paths with contours first.';
+                    return;
+                }
+            } else if (editedContourLayer.getLayers().length === 0) {
+                document.getElementById('contourEditStatus').textContent = '⚠ No contour available. Generate with contour mode or draw a new one.';
+                return;
+            }
+
+            enableContourEditing();
+        };
+
+        // Draw a brand-new contour line
+        document.getElementById('btnDrawContour').onclick = () => {
+            if (isDrawingContour) {
+                if (contourDrawHandler) { contourDrawHandler.disable(); contourDrawHandler = null; }
+                isDrawingContour = false;
+                document.getElementById('btnDrawContour').classList.remove('active');
+                document.getElementById('btnDrawContour').textContent = '🖊 Draw new contour';
+                return;
+            }
+
+            isDrawingContour = true;
+            document.getElementById('btnDrawContour').classList.add('active');
+            document.getElementById('btnDrawContour').textContent = '⏹ Stop drawing';
+            document.getElementById('contourEditStatus').textContent = 'Click points on the map to draw a contour line. Double-click to finish.';
+
+            contourDrawHandler = new L.Draw.Polyline(map, {
+                shapeOptions: { color: '#ffdd57', weight: 3.5, dashArray: '6,3' },
+            });
+            contourDrawHandler.enable();
+        };
+
+        map.on(L.Draw.Event.CREATED, e => {
+            // Only intercept polyline creation for contour drawing
+            if (isDrawingContour && e.layerType === 'polyline') {
+                editedContourLayer.addLayer(e.layer);
+                isDrawingContour = false;
+                contourDrawHandler = null;
+                document.getElementById('btnDrawContour').classList.remove('active');
+                document.getElementById('btnDrawContour').textContent = '🖊 Draw new contour';
+                updateContourEditStatus();
+                document.getElementById('btnRecalcContour').disabled = false;
+                return;
+            }
+
+            // Original boundary draw handler (polygon)
+            if (e.layerType === 'polygon') {
+                drawnItems.clearLayers();
+                drawnItems.addLayer(e.layer);
+                drawingActive = false;
+                currentDrawHandler = null;
+                document.getElementById('btnDraw').classList.remove('active');
+                document.getElementById('btnDraw').textContent = 'Draw polygon on map';
+                document.getElementById('genStatus').textContent = 'Boundary ready. Press Generate paths.';
+                setTimeout(updateOrientArrow, 50);
+            }
+        });
+
+        document.getElementById('btnClearEditedContour').onclick = () => {
+            editedContourLayer.clearLayers();
+            if (isEditingContour) disableContourEditing();
+            if (isDrawingContour && contourDrawHandler) {
+                contourDrawHandler.disable();
+                contourDrawHandler = null;
+                isDrawingContour = false;
+                document.getElementById('btnDrawContour').classList.remove('active');
+                document.getElementById('btnDrawContour').textContent = '🖊 Draw new contour';
+            }
+            document.getElementById('contourEditStatus').textContent = 'Edited contour cleared.';
+            document.getElementById('btnRecalcContour').disabled = true;
+        };
+
+        // Recalculate with edited contour
+        document.getElementById('btnRecalcContour').onclick = () => {
+            if (editedContourLayer.getLayers().length === 0) {
+                document.getElementById('contourEditStatus').textContent = '⚠ No edited contour to send.';
+                return;
+            }
+            // Save any active edits first
+            if (isEditingContour) disableContourEditing();
+            // Enable contour mode automatically
+            document.getElementById('p_use_elevation_contours').checked = true;
+            // Trigger generation (the generate handler picks up editedContourLayer)
+            document.getElementById('btnGenerate').click();
+        };
+
+        function updateContourEditStatus() {
+            const n = editedContourLayer.getLayers().length;
+            if (n > 0) {
+                document.getElementById('contourEditStatus').textContent = `✅ ${n} contour line(s) ready. Click "Recalculate" to use.`;
+                document.getElementById('btnRecalcContour').disabled = false;
+            } else {
+                document.getElementById('contourEditStatus').textContent = '';
+                document.getElementById('btnRecalcContour').disabled = true;
+            }
+        }
+
+        // Load edited contour from file
+        document.getElementById('fileEditedContourUpload').onchange = function () {
+            readFile(this, geojson => {
+                editedContourLayer.clearLayers();
+                L.geoJSON(geojson, {
+                    style: { color: '#ffdd57', weight: 3.5, opacity: 1, dashArray: '6,3' },
+                }).eachLayer(l => editedContourLayer.addLayer(l));
+                document.getElementById('lblEditedContour').textContent = '✅ ' + this.files[0].name;
+                document.getElementById('lblEditedContour').classList.add('loaded');
+                updateContourEditStatus();
+            });
+        };
+
+        function displayStats(stats, routesGeoJSON) {
+            const panel = document.getElementById('statsPanel');
+            const content = document.getElementById('statsContent');
+            const totalLen = stats.total_length || 0;
+            const lengths = stats.lengths || {};
+            const numTurns = stats.number_of_turns || 0;
+            const offLaneLen = stats.off_lanes_headways_length || stats['off_lanes-headways_length'] || 0;
+
+            // Count U-turns (lane2lane segments in routes)
+            let numUTurns = 0;
+            if (routesGeoJSON && routesGeoJSON.features) {
+                numUTurns = routesGeoJSON.features.filter(f => f.properties && f.properties.type === 'lane2lane').length;
+            }
+
+            // Read sustainability inputs
+            const fuelRate = parseFloat(document.getElementById('p_fuel_rate').value) || 0.35;
+            const fuelPrice = parseFloat(document.getElementById('p_fuel_price').value) || 1.50;
+            const co2PerL = parseFloat(document.getElementById('p_co2_per_litre').value) || 2.65;
+            const machineWeight = parseFloat(document.getElementById('p_machine_weight').value) || 8;
+            const tyreWidth = parseFloat(document.getElementById('p_tyre_width').value) || 0.6;
+            const fieldSpeed = parseFloat(document.getElementById('p_field_speed').value) || 8;
+
+            // Compute sustainability metrics
+            const totalKm = totalLen / 1000;
+            const fuelTotal = totalKm * fuelRate;
+            const fuelCost = fuelTotal * fuelPrice;
+            const co2Total = fuelTotal * co2PerL;
+            const timeHours = totalKm / fieldSpeed;
+            const timeMin = timeHours * 60;
+
+            // Compaction: total area covered by tyres (2 axles × 2 tyres each = 4 tyre tracks)
+            const numTyres = 4;
+            const tyreTrackArea = totalLen * tyreWidth * numTyres;
+            // Weighted compaction for multi-pass areas
+            let totalCompactedArea = 0;
+            for (const [passes, len] of Object.entries(lengths)) {
+                totalCompactedArea += parseFloat(len) * tyreWidth * numTyres * parseInt(passes);
+            }
+            // Compaction pressure (kPa) — simplified: weight / tyre contact area
+            const tyreContactLen = 0.3; // ~30cm contact patch length
+            const contactArea = tyreWidth * tyreContactLen * numTyres;
+            const compactionPressure = (machineWeight * 9.81) / contactArea; // kPa
+
+            let html = '';
+
+            // Field area
+            const fieldAreaM2 = stats.field_area || 0;
+            const fieldAreaHa = fieldAreaM2 / 10000;
+            html += '<div class="stat-row"><span class="stat-label">Field area</span><span class="stat-val">' + fieldAreaHa.toFixed(2) + ' ha</span></div>';
+
+            // Path lengths
+            html += '<div class="stat-row"><span class="stat-label">Total path length</span><span class="stat-val">' + totalLen.toFixed(0) + ' m</span></div>';
+            html += '<div class="stat-row"><span class="stat-label">Off lanes/headways length</span><span class="stat-val">' + offLaneLen.toFixed(0) + ' m <span class="stat-pct">(' + (totalLen > 0 ? (offLaneLen / totalLen * 100).toFixed(1) : 0) + '%)</span></span></div>';
+            html += '<div class="stat-row"><span class="stat-label">Number of turns</span><span class="stat-val">' + numTurns + '</span></div>';
+            html += '<div class="stat-row"><span class="stat-label">Number of U-turns</span><span class="stat-val">' + numUTurns + '</span></div>';
+
+            // Pass counts
+            html += '<hr>';
+            html += '<div class="section-title">Coverage by pass count</div>';
+            const passKeys = Object.keys(lengths).sort((a, b) => parseInt(a) - parseInt(b));
+            for (const k of passKeys) {
+                const len = parseFloat(lengths[k]);
+                const pct = totalLen > 0 ? (len / totalLen * 100).toFixed(1) : 0;
+                html += '<div class="stat-row"><span class="stat-label">' + k + '× pass</span><span class="stat-val">' + len.toFixed(0) + ' m <span class="stat-pct">(' + pct + '%)</span></span></div>';
+            }
+
+            // Sustainability
+            html += '<hr>';
+            html += '<div class="section-title">⛽ Fuel & Time</div>';
+            html += '<div class="stat-row"><span class="stat-label">Fuel consumption</span><span class="impact-val">' + fuelTotal.toFixed(1) + ' L</span></div>';
+            html += '<div class="stat-row"><span class="stat-label">Fuel cost</span><span class="impact-val">€' + fuelCost.toFixed(2) + '</span></div>';
+            html += '<div class="stat-row"><span class="stat-label">Field time</span><span class="impact-val">' + timeMin.toFixed(0) + ' min</span></div>';
+
+            html += '<hr>';
+            html += '<div class="section-title">🌍 CO₂ Emissions</div>';
+            html += '<div class="stat-row"><span class="stat-label">CO₂ emissions</span><span class="impact-val">' + co2Total.toFixed(1) + ' kg</span></div>';
+
+            html += '<hr>';
+            html += '<div class="section-title">🚜 Soil Compaction</div>';
+            html += '<div class="stat-row"><span class="stat-label">Tyre track area (single pass)</span><span class="impact-val">' + tyreTrackArea.toFixed(0) + ' m²</span></div>';
+            html += '<div class="stat-row"><span class="stat-label">Weighted compacted area</span><span class="impact-val">' + totalCompactedArea.toFixed(0) + ' m²</span></div>';
+            html += '<div class="stat-row"><span class="stat-label">Ground pressure</span><span class="impact-val">' + compactionPressure.toFixed(0) + ' kPa</span></div>';
+
+            content.innerHTML = html;
+            panel.classList.add('visible');
+        }
+
+    </script>
+</body>
+
+</html>

@@ -1,12 +1,128 @@
 <!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>k-said</title>
-  </head>
-  <body>
-    <h1>Hello from GitHub Pages</h1>
-    <p>Published on 2026-03-06.</p>
-  </body>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>k-said · AgriTech Services</title>
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 16px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    header h1 {
+      font-size: 2rem;
+      color: #e94560;
+      letter-spacing: 2px;
+    }
+
+    header p {
+      color: #888;
+      margin-top: 8px;
+      font-size: 0.9rem;
+    }
+
+    .services {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      justify-content: center;
+      max-width: 960px;
+      width: 100%;
+    }
+
+    .card {
+      background: #16213e;
+      border: 1px solid #0f3460;
+      border-radius: 12px;
+      padding: 32px 28px;
+      width: 280px;
+      text-align: center;
+      text-decoration: none;
+      color: inherit;
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: #e94560;
+      box-shadow: 0 8px 24px rgba(233, 69, 96, 0.2);
+    }
+
+    .card-icon {
+      font-size: 2.8rem;
+      margin-bottom: 16px;
+    }
+
+    .card h2 {
+      font-size: 1.1rem;
+      color: #56b4ff;
+      margin-bottom: 10px;
+    }
+
+    .card p {
+      font-size: 0.82rem;
+      color: #aaa;
+      line-height: 1.5;
+    }
+
+    footer {
+      margin-top: 56px;
+      font-size: 0.75rem;
+      color: #555;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>k-said</h1>
+    <p>AgriTech precision tools</p>
+  </header>
+
+  <div class="services">
+    <a class="card" href="/machinery_paths/">
+      <div class="card-icon">🚜</div>
+      <h2>Machinery Paths</h2>
+      <p>Contour-guided path planning for field machinery with real-time route optimisation.</p>
+    </a>
+
+    <a class="card" href="/bufferzones/">
+      <div class="card-icon">🌿</div>
+      <h2>Buffer Zones</h2>
+      <p>Automatic generation and visualisation of protection buffer zones around field boundaries.</p>
+    </a>
+
+    <a class="card" href="/yeld-pred/">
+      <div class="card-icon">📈</div>
+      <h2>Yield Prediction</h2>
+      <p>Machine-learning driven crop yield forecasting based on field geometry and sensor data.</p>
+    </a>
+  </div>
+
+  <footer>© 2026 k-said · All rights reserved</footer>
+</body>
+
 </html>
