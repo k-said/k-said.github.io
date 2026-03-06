@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
-    <title>Contour‑Guided Machinery Path Planner</title>
+    <title>Machinery Path Planner</title>
 
     <!-- Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -654,7 +654,16 @@
 
     <!-- ── Controls ── -->
     <div id="topbar">
-        <h1>🌾 Contour‑Guided Machinery Path Planner</h1>
+
+        <div>
+            <div style="font-size:1.1rem;color:#e94560;font-weight:700;"> 🌾Machinery Path Planner
+            </div>
+            <div style="font-size:0.78rem;color:#56b4ff;margin-top:2px;">Digital Sustainability &amp; Soil
+                Health Team</div>
+        </div>
+
+
+
 
         <label>Speed
             <input type="range" id="speedSlider" min="1" max="20" value="5" />
@@ -714,14 +723,14 @@
                         fill="#333">syngenta</text>
                 </svg>
                 <div>
-                    <div style="font-size:1.1rem;color:#e94560;font-weight:700;">Contour‑Guided Machinery Path Planner
+                    <div style="font-size:1.1rem;color:#e94560;font-weight:700;">Machinery Path Planner
                     </div>
                     <div style="font-size:0.78rem;color:#56b4ff;margin-top:2px;">Digital Sustainability &amp; Soil
                         Health Team</div>
                 </div>
             </div>
 
-            <h2>📖 Contour‑Guided Machinery Path Planner — Help</h2>
+            <h2>📖 Machinery Path Planner — Help</h2>
 
             <!-- ============ GETTING STARTED ============ -->
             <h3>🚀 Getting Started</h3>
@@ -808,7 +817,7 @@
                         <line x1="220" y1="20" x2="220" y2="100" stroke="#4cff56" stroke-width="2" />
                         <line x1="60" y1="60" x2="140" y2="60" stroke="#ffdd57" stroke-width="1.5"
                             stroke-dasharray="4,3" />
-                        <text x="100" y="54" fill="#ffdd57" font-size="11" text-anchor="middle">lane gap</text>
+                        <text x="100" y="54" fill="#ffdd57" font-size="11" text-anchor="middle">lane width</text>
                         <text x="60" y="112" fill="#4cff56" font-size="9" text-anchor="middle">Lane 1</text>
                         <text x="140" y="112" fill="#4cff56" font-size="9" text-anchor="middle">Lane 2</text>
                         <text x="220" y="112" fill="#4cff56" font-size="9" text-anchor="middle">Lane 3</text>
@@ -816,7 +825,7 @@
                 </div>
             </div>
 
-            <!-- Headway gap -->
+            <!-- headway width-->
             <div class="hp">
                 <div class="hp-text">
                     <b>Headway width (m)</b> — distance between successive headway rings
@@ -913,7 +922,7 @@
             <!-- ============ ADVANCED PARAMETERS ============ -->
             <h3>🔧 Advanced Parameters</h3>
 
-            <!-- Lane-headway gap -->
+            <!-- Lane-headway width-->
             <div class="hp">
                 <div class="hp-text">
                     <b>Lane-headway gap (m)</b> — extra clearance between the innermost
@@ -1088,10 +1097,10 @@
                         <!-- dimension: headway-border gap -->
                         <line x1="15" y1="20" x2="15" y2="40" stroke="#ff8c00" stroke-width="1" />
                         <text x="5" y="34" fill="#ff8c00" font-size="7">bdr</text>
-                        <!-- dimension: lane gap -->
+                        <!-- dimension: lane width-->
                         <line x1="100" y1="218" x2="150" y2="218" stroke="#ffdd57" stroke-width="1"
                             stroke-dasharray="2,2" />
-                        <text x="125" y="216" fill="#ffdd57" font-size="7" text-anchor="middle">lane gap</text>
+                        <text x="125" y="216" fill="#ffdd57" font-size="7" text-anchor="middle">lane width</text>
                     </svg>
                 </div>
             </div>
@@ -1151,7 +1160,7 @@
                 <button id="advancedToggle">▸ Advanced parameters</button>
                 <div id="advancedParams">
                     <div class="param-grid">
-                        <label>Lane-headway gap (m)</label>
+                        <label>Lane-headway width(m)</label>
                         <input type="number" id="p_lane_headway_gap" value="0" step="0.5" />
 
                         <label>Lane boundary offset (m)</label>
@@ -2449,7 +2458,6 @@
             // Path lengths
             html += '<div class="stat-row"><span class="stat-label">Total path length</span><span class="stat-val">' + totalLen.toFixed(0) + ' m</span></div>';
             html += '<div class="stat-row"><span class="stat-label">Off lanes/headways length</span><span class="stat-val">' + offLaneLen.toFixed(0) + ' m <span class="stat-pct">(' + (totalLen > 0 ? (offLaneLen / totalLen * 100).toFixed(1) : 0) + '%)</span></span></div>';
-            html += '<div class="stat-row"><span class="stat-label">Number of turns</span><span class="stat-val">' + numTurns + '</span></div>';
             html += '<div class="stat-row"><span class="stat-label">Number of U-turns</span><span class="stat-val">' + numUTurns + '</span></div>';
 
             // Pass counts
