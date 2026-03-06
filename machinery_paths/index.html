@@ -1528,7 +1528,12 @@
                     throw new Error(detail);
                 }
 
-                const data = JSON.parse(rawText);
+                let data = JSON.parse(rawText);
+                // Unwrap double-encoded Lambda response (when Proxy Integration is off)
+                if (data.statusCode !== undefined && typeof data.body === 'string') {
+                    if (data.statusCode >= 400) throw new Error(JSON.parse(data.body).error || data.body);
+                    data = JSON.parse(data.body);
+                }
                 console.log('Server response keys:', Object.keys(data));
                 console.log('routes:', JSON.stringify(data.routes).substring(0, 300));
                 console.log('lanes:', JSON.stringify(data.lanes).substring(0, 300));
