@@ -1510,7 +1510,7 @@
             try {
                 const resp = await fetch(`${API_BASE}/run`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'text/plain' },
                     body: JSON.stringify({
                         boundary: boundaryGeoJSON,
                         params,
