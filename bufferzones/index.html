@@ -1,0 +1,1665 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoJSON & CSV Editor</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-gap: 20px;
+        }
+
+        .left-column {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .right-column {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .panel {
+            background-color: #f5f5f5;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .full-height-panel {
+            background-color: #f5f5f5;
+            border-radius: 5px;
+            padding: 15px;
+            flex-grow: 1;
+        }
+
+        .map-container {
+            height: 600px;
+            margin-bottom: 20px;
+        }
+
+        #map {
+            height: 100%;
+            border-radius: 5px;
+        }
+
+        .params-editor {
+            height: 300px;
+            width: 100%;
+            margin-top: 10px;
+            font-family: monospace;
+        }
+
+        .button-submit {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 15px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 20px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+            width: 100%;
+        }
+
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 15px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .file-input {
+            margin-bottom: 10px;
+        }
+
+        h2 {
+            margin-top: 0;
+        }
+
+        .results {
+            height: 200px;
+            width: 95%;
+            margin-top: 10px;
+            font-family: monospace;
+            overflow: auto;
+            background-color: #f8f8f8;
+            border: 1px solid #ddd;
+            padding: 10px;
+        }
+
+        /* CSV Table Styles */
+        .csv-table-container {
+            max-height: 500px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+
+        #csv-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        #csv-table th,
+        #csv-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        #csv-table th {
+            background-color: #37447b;
+            color: white;
+            position: sticky;
+            top: 0;
+        }
+
+        #csv-table tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        #csv-table tr:hover {
+            background-color: #ddd;
+        }
+
+        #csv-table input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 5px;
+            border: 1px solid #ddd;
+        }
+
+        .table-actions {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+        }
+
+        #download-geojson {
+            display: none;
+        }
+
+        .legend {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .legend h4 {
+            margin: 0 0 5px;
+            font-size: 14px;
+        }
+
+        .legend i {
+            width: 18px;
+            height: 18px;
+            float: left;
+            margin-right: 8px;
+            opacity: 0.7;
+        }
+
+        .leaflet-control-layers {
+            background: white;
+            padding: 6px 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .leaflet-tooltip {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid #999;
+            border-radius: 3px;
+            padding: 4px 8px;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+
+        .container {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            margin: 20px;
+        }
+
+        .select-container {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+
+        .product-box {
+            flex: 1;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            background-color: white;
+        }
+
+        .product-box h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .product-select {
+            width: 100%;
+            height: 250px;
+            border: 1px solid #b10d34;
+            border-radius: 4px;
+            padding: 5px;
+        }
+
+        .transfer-buttons {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 10px;
+            padding: 0 15px;
+        }
+
+        .transfer-button {
+            padding: 8px 12px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            min-width: 40px;
+        }
+
+        .transfer-button:hover {
+            background-color: #45a049;
+        }
+
+        .filter-button {
+            margin-top: 15px;
+            width: 100%;
+            padding: 10px;
+            background-color: #37447b;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .filter-button:hover {
+            background-color: #2a3463;
+        }
+
+        #result {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f8f8f8;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+
+        footer {
+            margin-top: 56px;
+            font-size: 0.75rem;
+            color: #555;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Left Column -->
+    <div class="left-column">
+        <div class="panel">
+            <h1>Buffer Zones Demo</h1>
+            <p>Welcome to the Buffer Zones Demo application. Please follow these steps:</p>
+            <ol>
+                <li>Upload or edit your rules CSV file (CP products and bufferzones rules)</li>
+                <li>Upload or edit parameters file (OpenStreetMap tags and headers of CSV)</li>
+                <li>Select CP products to spray</li>
+                <li>Upload or draw your field map</li>
+                <li>Click "Submit" to generate results</li>
+                <li>Download the buffer zone once results are displayed</li>
+            </ol>
+            <p>For questions or suggestions, please contact <b>Said Kharbouche</b>.</p>
+            <p>For more details on this tool, please refer to <a
+                    href="https://digitial-product-engineering.atlassian.net/wiki/spaces/SeedsDigital/pages/4552167263/Buffer+Zones">this
+                    confluence page</a>.</p>
+            <p><strong>Note:</strong> This demo is for internal use only. &copy; Syngenta 2025.</p>
+
+        </div>
+
+        <div class="panel">
+            <h2>1. Rules:</h2>
+            <p>upload rules file (.csv) or edit below table</p>
+            <input type="file" id="csv-upload" accept=".csv" class="file-input">
+            <div class="csv-table-container">
+                <table id="csv-table">
+                    <thead>
+                        <tr>
+                            <th>Loading CSV data...</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Please upload a CSV file</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="table-actions">
+                <button id="add-row">Add Row</button>
+                <button id="add-column">Add Column</button>
+                <button id="update-csv">Save Changes</button>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>2. Parameters (OpenStreetMap tags & headers):</h2>
+            <p>upload parameters file (.json) or edit below text</p>
+            <input type="file" id="params-upload" accept=".json" class="file-input">
+            <textarea id="params-editor" class="params-editor"></textarea>
+            <button id="update-params">Update Parameters</button>
+        </div>
+    </div>
+
+    <!-- Right Column -->
+    <div class="right-column">
+
+
+
+        <div class="panel">
+            <h2>3. CP products to spray:</h2>
+
+            <div class="product-panel">
+                <div class="select-container">
+                    <div class="product-box">
+                        <h3>Available Products:</h3>
+                        <select id="availableProducts" multiple>
+                        </select>
+                    </div>
+
+                    <div class="transfer-buttons">
+                        <button class="transfer-button" onclick="moveToSelected()">→</button>
+                        <button class="transfer-button" onclick="moveToAvailable()">←</button>
+                    </div>
+
+                    <div class="product-box">
+                        <h3>Selected Products:</h3>
+                        <select id="selectedProducts" multiple>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+
+
+        <div class="full-height-panel">
+            <h2>4. Boundary:</h2>
+            <div class="map-container">
+                <div id="map"></div>
+            </div>
+            <div>
+                <p>upload field boundary (.geojson) or draw on above map</p>
+                <input type="file" id="geojson-upload" accept=".geojson,.json" class="file-input">
+            </div>
+
+
+        </div>
+
+        <div class="panel">
+            <h2>5. Submit & Results:</h2>
+            <button id="download-geojson" style="display: none;">Download BufferZones</button>
+            <button id="submit-api" class="button-submit">Submit</button>
+            <div id="loading" style="display: none;color: orange;">Processing...</div>
+            <div class="results" id="results"></div>
+        </div>
+    </div>
+</body>
+
+
+<script>
+    // Initialize the map
+    // Initialize the map
+    var driftname = null;
+    var productname = null;
+    const map = L.map('map').setView([51.505, -0.09], 13);
+
+    // Define base layers
+    const openStreetMap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    });
+
+    // Google Maps layers
+    const googleStreets = L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+        attribution: '&copy; Google Maps'
+    });
+
+    const googleSatellite = L.tileLayer('http://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+        attribution: '&copy; Google Maps'
+    });
+
+    // Add default layer to map
+    openStreetMap.addTo(map);
+
+    // Create a layer control and add it to the map
+
+
+
+
+    // Add a "None" option to base layers
+    const baseLayersMaps = {
+        "None": L.tileLayer(''),  // Empty tile layer
+        "OpenStreetMap": openStreetMap,
+        "Google Streets": googleStreets,
+        "Google Satellite": googleSatellite
+    };
+
+    // Create the layer control
+    const layerControlMaps = L.control.layers(baseLayersMaps, {}, {
+        // position: 'topright',  // We'll reposition this with CSS
+        collapsed: false       // Optional: keep the control expanded
+    });
+
+    // Add the control to the map
+    layerControlMaps.addTo(map);
+
+    // Add CSS to position the control at the top center
+    // const style = document.createElement('style');
+    // style.innerHTML = `
+    // .leaflet-top.leaflet-right {
+    //     top: 10px;
+    //     right: 50%;
+    //     transform: translateX(50%);
+    // }
+    // `;
+    // document.head.appendChild(style);
+
+
+
+    // Initialize variables to store data
+    let csvData = null;
+    let csvParsed = null;
+    let csvHeaders = [];
+    let params = null;
+    let geojsonData = null;
+    let resultGeojson = null;
+    let resultVareas = null;
+    let polygonCreated = false;
+
+    // Initialize the draw control
+    var drawnItems = new L.FeatureGroup();
+    var otherItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+
+    const drawControl = new L.Control.Draw({
+        edit: {
+            featureGroup: drawnItems
+        },
+        draw: {
+            marker: false,
+            circlemarker: false,
+            circle: false,
+            polyline: false,
+            rectangle: true,
+            polygon: true
+        }
+    });
+    map.addControl(drawControl);
+
+    // Handle draw events
+    map.on(L.Draw.Event.CREATED, function (event) {
+        if (polygonCreated) {
+            drawnItems.clearLayers();
+        }
+
+        const layer = event.layer;
+        drawnItems.addLayer(layer);
+        polygonCreated = true;
+        updateGeoJsonFromLayers();
+        // document.getElementById('download-geojson').style.display = 'inline-block'; // Show download button
+    });
+
+
+    map.on('draw:drawstart', function (e) {
+        drawnItems.clearLayers();
+    });
+
+
+    map.on(L.Draw.Event.EDITED, function () {
+        updateGeoJsonFromLayers();
+        // document.getElementById('download-geojson').style.display = 'inline-block'; // Show download button
+    });
+
+    map.on(L.Draw.Event.DELETED, function () {
+        polygonCreated = false;
+        updateGeoJsonFromLayers();
+        // document.getElementById('download-geojson').style.display = 'none';
+    });
+
+    // Update GeoJSON from drawn layers
+    function updateGeoJsonFromLayers() {
+        geojsonData = drawnItems.toGeoJSON();
+        document.getElementById('results').textContent = 'field: ' + JSON.stringify(processGeoJSON(geojsonData), null, 2);
+        document.getElementById('results').style.color = 'gray';
+
+    }
+
+    // Automatically load default files on page load
+    window.onload = function () {
+        loadDefaultFiles();
+    };
+
+
+
+    function loadDefaultFiles() {
+        params = JSON.stringify(params0, null, 2);
+        document.getElementById('params-editor').value = params;
+        productname = params0["cp-product-attr"];
+        driftname = params0["drift-attr"];
+
+
+        geojsonData = field0
+        drawnItems.clearLayers();
+        L.geoJSON(geojsonData, {
+            onEachFeature: function (feature, layer) {
+                drawnItems.addLayer(layer);
+            }
+        });
+        const bounds = L.geoJSON(geojsonData).getBounds();
+        map.fitBounds(bounds);
+        polygonCreated = true;
+        document.getElementById('results').textContent = 'field: ' + JSON.stringify(processGeoJSON(geojsonData), null, 2);
+        document.getElementById('results').style.color = 'gray';
+
+        // document.getElementById('download-geojson').style.display = 'inline-block';
+
+        csvData = rules0;
+        renderCSVTable(csvData);
+
+        const csvDataJson = csvToJson(csvData);
+        initializeProducts(csvDataJson);
+
+
+
+    }
+
+
+
+
+
+    function initializeProducts(data) {
+        // Get unique products and sort them
+        const uniqueProducts = [...new Set(data[productname])].sort();
+
+        // Initialize available products
+        const availableSelect = document.getElementById('availableProducts');
+        availableSelect.innerHTML = ''; // Clear existing options
+
+        uniqueProducts.forEach(product => {
+            const option = new Option(product, product);
+            availableSelect.add(option);
+        });
+    }
+
+    function moveToSelected() {
+        moveItems('availableProducts', 'selectedProducts');
+    }
+
+    function moveToAvailable() {
+        moveItems('selectedProducts', 'availableProducts');
+    }
+
+    function moveItems(fromId, toId) {
+        const fromSelect = document.getElementById(fromId);
+        const toSelect = document.getElementById(toId);
+
+        if (!fromSelect || !toSelect) {
+            console.error('Select elements not found');
+            return;
+        }
+
+        const selectedOptions = Array.from(fromSelect.selectedOptions);
+
+        if (selectedOptions.length === 0) {
+            return; // No items selected
+        }
+
+        selectedOptions.forEach(option => {
+            // Check if the option already exists in the target select
+            if (!Array.from(toSelect.options).some(opt => opt.value === option.value)) {
+                toSelect.add(new Option(option.text, option.value));
+            }
+            fromSelect.remove(option.index);
+        });
+
+        // Sort both lists
+        sortSelect(fromSelect);
+        sortSelect(toSelect);
+    }
+
+    function sortSelect(select) {
+        if (!select) return;
+
+        const options = Array.from(select.options);
+        options.sort((a, b) => a.text.localeCompare(b.text));
+
+        select.innerHTML = '';
+        options.forEach(option => select.add(option));
+    }
+
+    function filterData(data) {
+        const selectedSelect = document.getElementById('selectedProducts');
+
+        if (!selectedSelect || selectedSelect.options.length === 0) {
+            return;
+        }
+
+        const selectedProducts = Array.from(selectedSelect.options).map(option => option.value);
+
+        // Filter data based on selected products
+        const filteredIndices = data[productname].reduce((indices, prod, index) => {
+            if (selectedProducts.includes(prod)) {
+                indices.push(index);
+            }
+            return indices;
+        }, []);
+
+        // Create new filtered data object
+        const filteredData = {};
+        Object.keys(data).forEach(key => {
+            filteredData[key] = filteredIndices.map(index => data[key][index]);
+        });
+        return filteredData;
+    }
+
+
+    document.getElementById('geojson-upload').addEventListener('change', function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function (event) {
+            try {
+                drawnItems.clearLayers();
+                geojsonData = JSON.parse(event.target.result);
+                drawnItems.clearLayers();
+                L.geoJSON(geojsonData, {
+                    onEachFeature: function (feature, layer) {
+                        drawnItems.addLayer(layer);
+                    }
+                });
+                const bounds = L.geoJSON(geojsonData).getBounds();
+                map.fitBounds(bounds);
+                polygonCreated = true;
+
+
+                document.getElementById('results').textContent = 'field: ' + JSON.stringify(processGeoJSON(geojsonData), null, 2);
+                document.getElementById('results').style.color = 'gray';
+
+            } catch (error) {
+                document.getElementById('results').textContent = "Error parsing GeoJSON file: " + error;
+                document.getElementById('results').style.color = 'red';
+            }
+        };
+
+        reader.readAsText(file);
+    });
+
+    // Handle CSV file upload and render as table
+    document.getElementById('csv-upload').addEventListener('change', function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            csvData = e.target.result;
+            // alert(csvData);
+            // const jsonData = textToJson(csvData);
+            renderCSVTable(csvData);
+            const csvDataJson = csvToJson(csvData);
+            initializeProducts(csvDataJson);
+
+        };
+        reader.readAsText(file);
+    });
+
+    // Render CSV as an editable table
+    function renderCSVTable(csvText) {
+        Papa.parse(csvText, {
+            header: true,
+            skipEmptyLines: true,
+            complete: function (results) {
+                csvParsed = results.data;
+                csvHeaders = results.meta.fields;
+
+                const table = document.getElementById('csv-table');
+
+                // Create table header
+                let headerHTML = '<tr>';
+                csvHeaders.forEach(header => {
+                    headerHTML += `<th>${header}</th>`;
+                });
+                headerHTML += '</tr>';
+
+                // Create table body
+                let bodyHTML = '';
+                csvParsed.forEach((row, rowIndex) => {
+                    bodyHTML += '<tr>';
+                    csvHeaders.forEach(header => {
+                        const cellValue = row[header] !== undefined ? row[header] : '';
+                        bodyHTML += `<td><input type="text" value="${cellValue}" 
+                                data-row="${rowIndex}" data-col="${header}"></td>`;
+                    });
+                    bodyHTML += '</tr>';
+                });
+
+                table.innerHTML = `<thead>${headerHTML}</thead><tbody>${bodyHTML}</tbody>`;
+
+                // Add event listeners to inputs
+                const inputs = table.querySelectorAll('input');
+                inputs.forEach(input => {
+                    input.addEventListener('change', function () {
+                        const row = parseInt(this.dataset.row);
+                        const col = this.dataset.col;
+                        csvParsed[row][col] = this.value;
+                    });
+                });
+            }
+        });
+    }
+
+    // Add a new row to the CSV table
+    document.getElementById('add-row').addEventListener('click', function () {
+        if (!csvParsed) {
+            document.getElementById('results').innerHTML = 'Please upload a CSV file first';
+            document.getElementById('results').style.color = 'red';
+            return;
+        }
+
+        // Create a new empty row object
+        const newRow = {};
+        csvHeaders.forEach(header => {
+            newRow[header] = '';
+        });
+
+        // Add to parsed data
+        csvParsed.push(newRow);
+
+        // Re-render the table
+        const table = document.getElementById('csv-table');
+        const tbody = table.querySelector('tbody');
+        const newRowIndex = csvParsed.length - 1;
+
+        const tr = document.createElement('tr');
+        csvHeaders.forEach(header => {
+            const td = document.createElement('td');
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = '';
+            input.dataset.row = newRowIndex;
+            input.dataset.col = header;
+
+            input.addEventListener('change', function () {
+                csvParsed[newRowIndex][header] = this.value;
+            });
+
+            td.appendChild(input);
+            tr.appendChild(td);
+        });
+
+        tbody.appendChild(tr);
+    });
+
+    // Add a new column to the CSV table
+    document.getElementById('add-column').addEventListener('click', function () {
+        if (!csvParsed) {
+            document.getElementById('results').innerHTML = 'Please upload a CSV file first';
+            document.getElementById('results').style.color = 'red';
+            return;
+        }
+
+        // Prompt for column name
+        const columnName = prompt('Enter new column name:');
+        if (!columnName) return;
+
+        // Add column to headers
+        csvHeaders.push(columnName);
+
+        // Add empty value for this column to all rows
+        csvParsed.forEach(row => {
+            row[columnName] = '';
+        });
+
+        // Re-render the entire table
+        renderCSVTable(generateCSVFromData());
+    });
+
+    // Generate CSV string from parsed data
+    function generateCSVFromData() {
+        return Papa.unparse(csvParsed, {
+            header: true
+        });
+    }
+
+    // Update CSV data
+    document.getElementById('update-csv').addEventListener('click', function () {
+        if (!csvParsed) {
+            document.getElementById('results').innerHTML = 'No CSV data to save';
+            document.getElementById('results').style.color = 'red';
+            return;
+        }
+
+        csvData = generateCSVFromData();
+        document.getElementById('results').innerHTML = 'Rules upadted';
+        document.getElementById('results').style.color = 'blue';
+        const jsonData = csvToJson(csvData);
+        initializeProducts(jsonData);
+
+    });
+
+    // Handle JSON params file upload
+    document.getElementById('params-upload').addEventListener('change', function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            document.getElementById('params-editor').value = e.target.result;
+            params = e.target.result;
+        };
+        reader.readAsText(file);
+    });
+
+    // Update JSON params data
+    document.getElementById('update-params').addEventListener('click', function () {
+        params = document.getElementById('params-editor').value;
+        document.getElementById('results').innerHTML = 'Paramters upadted';
+        document.getElementById('results').style.color = 'blue';
+        const jsonparam = textToJson(params)
+        productname = jsonparam["cp-product-attr"];
+        driftname = jsonparam["drift-attr"];
+
+
+    });
+
+
+
+    function csvToJson(csvString) {
+        if (!csvString || csvString.trim() === '') {
+            return null;
+        }
+
+        const lines = csvString.trim().split('\n');
+        if (lines.length === 0) {
+            return null;
+        }
+
+        const headers = lines[0].split(',').map(header => header.trim());
+        const result = {};
+
+        // Initialize empty arrays for each header
+        headers.forEach(header => {
+            result[header] = [];
+        });
+
+        // If only headers exist, return the object with empty arrays
+        if (lines.length === 1) {
+            return result;
+        }
+
+        // Process data rows
+        for (let i = 1; i < lines.length; i++) {
+            const values = lines[i].split(',').map(value => {
+                const trimmedValue = value.trim();
+                // Check if the value is a number
+                return !isNaN(trimmedValue) && trimmedValue !== ''
+                    ? parseFloat(trimmedValue)
+                    : (trimmedValue === '' ? null : trimmedValue);
+            });
+
+            headers.forEach((header, index) => {
+                result[header].push(values[index] === undefined ? null : values[index]);
+            });
+        }
+
+        return result;
+    }
+
+
+    function textToJson(text) {
+        try {
+            // Remove any trailing/leading whitespace
+            const cleanText = text.trim();
+
+            // Parse the text into JSON
+            const jsonData = JSON.parse(cleanText);
+            return jsonData;
+        } catch (error) {
+            return { error: 'Invalid JSON format', details: error.message };
+        }
+    }
+
+
+    const field0 = {
+        "type": "FeatureCollection", "features": [{
+            "type": "Feature", "properties": {},
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[9.144246, 51.864867], [9.14667, 51.865914], [9.147271, 51.866484],
+                [9.147571, 51.866908], [9.148344, 51.86757], [9.148751, 51.868325], [9.149331, 51.868657], [9.149095, 51.869438],
+                [9.148494, 51.87026], [9.145362, 51.870922], [9.145126, 51.870273], [9.144611, 51.869147], [9.14401, 51.867782],
+                [9.142637, 51.867159], [9.141715, 51.866656], [9.140256, 51.866258], [9.138304, 51.865238], [9.140235, 51.864045],
+                [9.14238, 51.864947], [9.142594, 51.864788], [9.143646, 51.865265], [9.144246, 51.864867]]]
+            }
+        }]
+    };
+
+    const rules0 = `cp-product,varea-type,slope-min[%],slope-max[%],slope-dist[m],buffer-dist[m],drift-reduction[%]
+productA,Aquatic,,,,30,90
+productA,Aquatic,,,,60,75
+productA,Aquatic,,,,80,25
+productA,Aquatic,2.0,100.0,100.0,20,90
+productA,Aquatic,2.0,100.0,100.0,40,75
+productA,Aquatic,2.0,100.0,100.0,60,25
+productA,Terrestrial,,,,25,100
+productA,Terrestrial,,,,50,80
+productA,Terrestrial,,,,60,30
+productB,Aquatic,,,,10,95
+productB,Aquatic,,,,35,90
+productB,Aquatic,,,,45,40
+productB,Terrestrial,,,,10,100
+productB,Terrestrial,,,,55,70
+productB,Terrestrial,,,,85,30
+`
+
+    const params0 = {
+        //OpenStreetMap Tags:
+        "osm-tags": {
+            "Aquatic": {
+                "natural": ["water", "wetland"],
+                "water": true,
+                "waterway": true,
+                "landuse": ["reservoir", "basin"]
+            },
+            "Terrestrial": {
+                "natural": ["wood", "scrub"],
+                "landuse": ["forest"]
+            }
+        },
+
+        //Headers of Rules Table:
+        "cp-product-attr": "cp-product",
+        "vareas-type-attr": "varea-type",
+        "slope-min-attr": "slope-min[%]",
+        "slope-max-attr": "slope-max[%]",
+        "slope-dist-attr": "slope-dist[m]",
+        "buffer-dist-attr": "buffer-dist[m]",
+        "drift-attr": "drift-reduction[%]"
+    }
+
+    function processGeoJSON(geojsonData) {
+        const result = {
+            'area[ha]': 0,
+            'length[m]': 0,
+            'number of vertex': 0,
+            'centroid': { lat: 0, lng: 0 }
+        };
+
+        // Check if the input is valid
+        if (!geojsonData || !geojsonData.features || !geojsonData.features.length) {
+            return result;
+        }
+
+        // Process each feature
+        geojsonData.features.forEach(feature => {
+            if (feature.geometry && feature.geometry.type === 'Polygon') {
+                const coordinates = feature.geometry.coordinates[0]; // Outer ring
+
+                // Number of vertices (excluding the closing point)
+                result['number of vertex'] = coordinates.length - 1;
+
+                // Calculate area using the Shoelace formula (Gauss's area formula)
+                let area = 0;
+                let cx = 0;
+                let cy = 0;
+
+                for (let i = 0; i < coordinates.length - 1; i++) {
+                    const [lng1, lat1] = coordinates[i];
+                    const [lng2, lat2] = coordinates[i + 1];
+
+                    // For area calculation
+                    area += lng1 * lat2 - lng2 * lat1;
+
+                    // For centroid calculation
+                    cx += (lng1 + lng2) * (lng1 * lat2 - lng2 * lat1);
+                    cy += (lat1 + lat2) * (lng1 * lat2 - lng2 * lat1);
+                }
+
+                // Finalize area calculation
+                area = Math.abs(area) / 2;
+
+                // Convert to square meters using an approximation
+                // At the equator, 1 degree of longitude is approximately 111,320 meters
+                // Adjust for latitude (cos of latitude in radians)
+                const centerLat = coordinates.reduce((sum, point) => sum + point[1], 0) / coordinates.length;
+                const latFactor = Math.cos(centerLat * Math.PI / 180);
+
+                // Approximate conversion from square degrees to square meters
+                const areaInSquareMeters = area * 111320 * 111320 * latFactor;
+
+                // Convert to hectares (1 hectare = 10,000 square meters)
+                result['area[ha]'] = areaInSquareMeters / 10000;
+
+                // Calculate centroid
+                const f = 1 / (6 * area);
+                result.centroid.lng = cx * f;
+                result.centroid.lat = cy * f;
+
+                // Calculate perimeter (length)
+                let length = 0;
+                for (let i = 0; i < coordinates.length - 1; i++) {
+                    const [lng1, lat1] = coordinates[i];
+                    const [lng2, lat2] = coordinates[i + 1];
+
+                    // Haversine formula to calculate distance between two points on Earth
+                    const R = 6371000; // Earth radius in meters
+                    const dLat = (lat2 - lat1) * Math.PI / 180;
+                    const dLng = (lng2 - lng1) * Math.PI / 180;
+
+                    const a =
+                        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+                    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                    const distance = R * c; // Distance in meters
+
+                    length += distance;
+                }
+
+                result['length[m]'] = length;
+            }
+        });
+
+        // Round the results for better readability
+        result['area[ha]'] = parseFloat(result['area[ha]'].toFixed(4));
+        result['length[m]'] = parseFloat(result['length[m]'].toFixed(2));
+        result.centroid.lat = parseFloat(result.centroid.lat.toFixed(6));
+        result.centroid.lng = parseFloat(result.centroid.lng.toFixed(6));
+
+        return result;
+    }
+    var driftDropdownControl = null;
+
+    // Process data through API Gateway
+    document.getElementById('submit-api').addEventListener('click', function () {
+
+
+        if (!geojsonData) {
+            document.getElementById('results').textContent = 'Please draw or upload field boundary first.';
+            document.getElementById('results').style.color = 'red';
+            return;
+        }
+        else {
+
+            document.getElementById('results').textContent = 'field: ' + JSON.stringify(processGeoJSON(geojsonData), null, 2);
+        }
+
+        if (!csvData) {
+            document.getElementById('results').textContent = 'Please upload rules file first.';
+            document.getElementById('results').style.color = 'red';
+            return;
+        }
+
+        if (!params) {
+            document.getElementById('results').textContent = 'Please upload parameters file (.json) first.';
+            document.getElementById('results').style.color = 'red';
+            return;
+        }
+
+
+        // Update CSV data from table
+        csvData = generateCSVFromData();
+
+        // Show loading indicator
+
+        const rulesAll = csvToJson(csvData);
+        const rules = filterData(rulesAll);
+
+        if (!rules) {
+            document.getElementById('results').textContent = 'Select at least one CP product!';
+            document.getElementById('results').style.color = 'red';
+            return;
+        }
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById("download-geojson").style.display = "none";
+        document.getElementById('results').textContent = '';
+        document.getElementById('results').style.color = 'gray';
+
+
+        const params_json = textToJson(params);
+        // Prepare data for API
+        const requestData = {
+            field: geojsonData,
+            params: params_json,
+            rules: rules,
+            vareas: null,
+            outdir: null
+        };
+
+        driftname = params_json["drift-attr"];
+        productname = params_json["cp-product-attr"];
+        document.getElementById("submit-api").style.display = 'none';
+
+
+        // Function to make API call with retry logic
+        function makeApiCall(retryCount = 0) {
+            fetch('https://xjf6tz8nb3.execute-api.eu-central-1.amazonaws.com/default/cad-bufferzone-v2', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            })
+                .then(response => {
+                    document.getElementById("submit-api").style.display = 'block';
+
+
+                    if (!response.ok) {
+                        if (retryCount < 1) {  // We want to try a total of 2 times (initial + 1 retry)
+                            document.getElementById('results').textContent = 'API call failed. Retrying in 5 seconds...';
+                            document.getElementById('results').style.color = 'orange';
+
+                            // Wait 5 seconds and retry
+                            setTimeout(() => {
+                                makeApiCall(retryCount + 1);
+                            }, 5000);
+
+                            throw new Error('Retrying...');
+                        } else {
+                            document.getElementById('results').textContent = 'Error in API call after retries.';
+                            document.getElementById('results').style.color = 'red';
+                            document.getElementById('loading').style.display = 'none';
+                            throw new Error('API call failed after retries');
+                        }
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Hide loading indicator
+                    document.getElementById('loading').style.display = 'none';
+
+                    // Display results
+                    resultGeojson = data.bufferzones;
+                    resultVareas = data.vareas;
+                    resultSlopes = data.slope;
+                    resultMessage = data.message;
+                    if (resultGeojson) {
+                        document.getElementById("download-geojson").style.display = "block";
+                    }
+                    document.getElementById('results').innerHTML = resultMessage.split('\n').join('<br>');
+                    document.getElementById('results').style.color = 'green';
+
+
+                    // Extract unique drift reduction values, varea types, and slope values
+                    const driftReductionValues = new Set();
+                    const vareaTypes = new Set();
+                    const slopeValues = new Set();
+
+                    // Collect unique drift reduction values
+                    if (resultGeojson && resultGeojson.features) {
+                        resultGeojson.features.forEach(feature => {
+                            if (feature.properties && feature.properties[driftname] !== undefined) {
+                                driftReductionValues.add(feature.properties[driftname]);
+                            }
+                        });
+                    }
+
+                    // Collect unique varea types
+                    if (resultVareas && resultVareas.features) {
+                        resultVareas.features.forEach(feature => {
+                            if (feature.properties && feature.properties['varea-type']) {
+                                vareaTypes.add(feature.properties['varea-type']);
+                            }
+                        });
+                    }
+
+                    // Convert sets to arrays and sort
+                    const uniqueDriftValues = Array.from(driftReductionValues).sort((a, b) => a - b);
+                    const uniqueVareaTypes = Array.from(vareaTypes).sort();
+
+
+                    // Generate color maps
+                    let driftColors = {};
+
+                    const vareaColors = generateColorMap(uniqueVareaTypes, 'spectral');
+
+                    // Create layer groups
+                    const bufferLayerGroup = L.layerGroup();
+                    const vareaLayerGroup = L.layerGroup();
+                    const slopeLayerGroup = L.layerGroup();
+                    driftColors = generateGreenToRedColorMap(uniqueDriftValues); // Store globally
+
+                    // Add buffer zones with colors based on drift reduction
+
+
+
+
+
+
+
+                    // Create a new control
+                    if (driftDropdownControl == null) {
+                        let driftDropdown = L.control({ position: 'topright' });
+
+                        driftDropdown.onAdd = function (map) {
+                            const div = L.DomUtil.create('div', 'info drift-dropdown');
+                            div.innerHTML = '<b>Select Drift Reduction: </b><select id="drift-select"><option value="">None</option></select>';
+                            return div;
+                        };
+
+                        // Store the reference and add to map
+                        driftDropdownControl = driftDropdown;
+                        driftDropdown.addTo(map);
+                    }
+
+                    // Store the control
+
+
+                    const driftSelect = document.getElementById('drift-select');
+
+                    // Clear existing options first
+                    while (driftSelect.options.length > 0) {
+                        driftSelect.remove(0);
+                    }
+                    if (driftDropdownControl) {
+                        const option1 = document.createElement('option');
+                        option1.value = "";
+                        option1.text = 'None';
+                        driftSelect.appendChild(option1);
+                    }
+
+
+                    uniqueDriftValues.forEach(value => {
+                        const option = document.createElement('option');
+                        option.value = value;
+                        option.text = value + '%';
+                        driftSelect.appendChild(option);
+                    });
+
+                    // Function to update buffer zone colors based on dropdown selection
+                    function updateBufferZoneColors(selectedDrift) {
+                        bufferLayer.eachLayer(layer => {
+                            const driftReduction = layer.feature.properties[driftname];
+                            if (driftReduction == selectedDrift) {
+                                layer.setStyle({ color: 'red', fillOpacity: 0.9 });
+                            } else {
+                                layer.setStyle({ color: '#999999', fillOpacity: 0.1 }); // Gray, half transparent
+                            }
+                        });
+                    }
+
+                    // Event listener for dropdown change
+                    driftSelect.addEventListener('change', function () {
+                        const selectedDrift = this.value;
+                        updateBufferZoneColors(selectedDrift);
+                    });
+                    const bufferLayer = L.geoJSON(resultGeojson, {
+                        style: function (feature) {
+                            const driftReduction = feature.properties[driftname];
+                            return {
+                                color: driftColors[driftReduction] || '#999999',
+                                weight: 2,
+                                opacity: 0.7,
+                                fillOpacity: 0.4
+                            };
+                        },
+                        onEachFeature: function (feature, layer) {
+                            // Add popup on click
+                            if (feature.properties) {
+                                layer.bindPopup(`Drift Reduction: ${feature.properties[driftname]}%`);
+                            }
+
+                            // Add tooltip on hover
+                            if (feature.properties) {
+                                layer.bindTooltip(`Drift Reduction: ${feature.properties[driftname]}%`, {
+                                    sticky: true,
+                                    direction: 'top'
+                                });
+                            }
+
+                            // Add to layer group
+                            bufferLayerGroup.addLayer(layer);
+                        }
+                    });
+
+                    // Add vareas with colors based on varea-type
+                    const vareaLayer = L.geoJSON(resultVareas, {
+                        style: function (feature) {
+                            const vareaType = feature.properties['varea-type'];
+                            return {
+                                color: vareaColors[vareaType] || '#FF00FF',
+                                weight: 2,
+                                opacity: 0.7,
+                                fillOpacity: 0.4
+                            };
+                        },
+                        onEachFeature: function (feature, layer) {
+                            // Add popup on click
+                            if (feature.properties) {
+                                layer.bindPopup(`Type: ${feature.properties['varea-type']}`);
+                            }
+
+                            // Add tooltip on hover
+                            if (feature.properties) {
+                                layer.bindTooltip(`Type: ${feature.properties['varea-type']}`, {
+                                    sticky: true,
+                                    direction: 'top'
+                                });
+                            }
+
+                            // Add to layer group
+                            vareaLayerGroup.addLayer(layer);
+                        }
+                    });
+
+                    // Add slopes with colors based on slope value (limited to 0-10% range)
+                    var slopeLayer = null;
+                    if (resultSlopes) {
+                        slopeLayer = L.geoJSON(resultSlopes, {
+                            pointToLayer: function (feature, latlng) {
+                                // Get slope value and clamp it between 0 and 10
+                                const slopeValue = feature.properties['slope'];
+                                const clampedSlope = Math.min(Math.max(slopeValue, 0), 10);
+
+                                // Calculate color based on the clamped slope value (0-10% range)
+                                const color = getSlopeColor(clampedSlope);
+
+                                return L.circleMarker(latlng, {
+                                    radius: 2,
+                                    fillColor: color,
+                                    color: color,
+                                    weight: 1,
+                                    opacity: 0.8,
+                                    fillOpacity: 0.6
+                                });
+                            },
+                            onEachFeature: function (feature, layer) {
+                                // Add tooltip on hover
+                                if (feature.properties) {
+                                    layer.bindTooltip(`Slope: ${feature.properties['slope'].toFixed(1)}%`, {
+                                        sticky: true,
+                                        direction: 'top'
+                                    });
+                                }
+
+                                // Add to layer group
+                                slopeLayerGroup.addLayer(layer);
+                            }
+                        });
+                    }
+
+                    // Clear existing layers
+                    drawnItems.clearLayers();
+                    var fieldLayer = L.geoJSON(geojsonData);
+                    fieldLayer.addTo(map);
+                    drawnItems.addLayer(fieldLayer);
+                    drawnItems.addLayer(bufferLayer);
+                    drawnItems.addLayer(vareaLayer);
+                    if (resultSlopes) {
+                        drawnItems.addLayer(slopeLayer);
+                        slopeLayerGroup.addTo(map);
+                    }
+
+                    // Add slope layer separately to control visibility
+                    // slopeLayerGroup.addTo(map);
+                    bufferLayerGroup.addTo(map);
+                    vareaLayerGroup.addTo(map);
+
+                    // Check if a layer control already exists and remove it
+                    map.controls = map.controls || [];
+                    map.controls.forEach(function (control) {
+                        if (control instanceof L.Control.Layers) {
+                            map.removeControl(control);
+                        }
+                    });
+
+                    // If the above doesn't work because Leaflet doesn't track controls this way, use this alternative:
+                    // Remove any existing layer controls by their class
+                    const existingLayerControls = document.querySelectorAll('.leaflet-control-layers');
+                    existingLayerControls.forEach(function (control) {
+                        control.remove();
+                    });
+
+                    // const baseLayers = {}; // No base layers to toggle
+                    const overlayLayers = {
+                        "Buffer Zones": bufferLayerGroup,
+                        "Vulnerable Areas": vareaLayerGroup,
+                        "Slopes": slopeLayerGroup
+                    };
+
+                    // Add new layer control to map
+                    const layerControl = L.control.layers(baseLayersMaps, overlayLayers, {
+                        collapsed: false
+                    }).addTo(map);
+
+                    // Store reference to the control if needed later
+                    map.layerControl = layerControl;
+
+                    // Create legends based on actual data values
+                    createBufferzoneLegend(uniqueDriftValues, driftColors);
+                    createVareaLegend(uniqueVareaTypes, vareaColors);
+                    if (resultSlopes) { createSlopeLegend(); }// Create slope legend with fixed 0-10% range
+
+                    // Show download button
+                    // document.getElementById('download-geojson').style.display = 'inline-block';
+
+                    // Fit the map to the result bounds
+                    if (resultGeojson.features && resultGeojson.features.length > 0) {
+                        const bounds = L.geoJSON(resultGeojson).getBounds();
+                        map.fitBounds(bounds);
+                    }
+                })
+                .catch(error => {
+                    // Only show error if it's not our retry error
+                    if (error.message !== 'Retrying...') {
+                        // Hide loading indicator
+                        document.getElementById('loading').style.display = 'none';
+                        if (!resultMessage) {
+                            document.getElementById('results').innerHTML = 'Error processing data: ' + error.message;
+                            document.getElementById('results').style.color = 'red';
+                        }
+                        else {
+                            document.getElementById('results').style.color = 'red';
+                        }
+                    }
+                });
+        }
+
+        // Start the initial API call
+        makeApiCall();
+
+        // Function to generate a green to red color map for drift reduction values
+        function generateGreenToRedColorMap(values) {
+            const colorMap = {};
+
+            // Define green to red color gradient
+            const greenToRed = [
+                '#00ff00', // Green
+                '#40ff00',
+                '#80ff00',
+                '#bfff00',
+                '#ffff00', // Yellow
+                '#ffbf00',
+                '#ff8000',
+                '#ff4000',
+                '#ff0000'  // Red
+            ];
+
+            // Assign colors to values
+            values.forEach((value, index) => {
+                const colorIndex = Math.floor((index / (values.length - 1 || 1)) * (greenToRed.length - 1));
+                colorMap[value] = greenToRed[colorIndex];
+            });
+
+            return colorMap;
+        }
+
+        // Function to get color for slope value (0-10% range)
+        function getSlopeColor(slopeValue) {
+            // Define a color gradient for slopes from 0% (green) to 10% (red)
+            const slopeColors = [
+                '#00ff00', // 0% - Green
+                '#40ff00',
+                '#80ff00',
+                '#bfff00',
+                '#ffff00', // 5% - Yellow
+                '#ffbf00',
+                '#ff8000',
+                '#ff4000',
+                '#ff0000'  // 10% - Red
+            ];
+
+            // Calculate the index in the color array based on the slope value
+            const index = Math.min(Math.floor((slopeValue / 10) * (slopeColors.length - 1)), slopeColors.length - 1);
+            return slopeColors[index];
+        }
+
+        // Function to generate a color map for categorical data
+        function generateColorMap(categories, colorScheme) {
+            const colorMap = {};
+
+            // Define color palettes
+            const colorPalettes = {
+                'viridis': ['#440154', '#482878', '#3e4989', '#31688e', '#26828e', '#1f9e89', '#35b779', '#6ece58', '#b5de2b', '#fde725'],
+                'spectral': ['#9e0142', '#d53e4f', '#f46d43', '#fdae61', '#fee08b', '#e6f598', '#abdda4', '#66c2a5', '#3288bd', '#5e4fa2']
+            };
+
+            const palette = colorPalettes[colorScheme] || colorPalettes.viridis;
+
+            // Assign colors to categories
+            categories.forEach((category, index) => {
+                const colorIndex = Math.floor((index / (categories.length - 1 || 1)) * (palette.length - 1));
+                colorMap[category] = palette[colorIndex];
+            });
+
+            return colorMap;
+        }
+
+        // Function to create legend for buffer zones
+        function createBufferzoneLegend(driftValues, colorMap) {
+            // Remove existing legend if any
+            const existingLegend = document.getElementById('bufferzone-legend');
+            if (existingLegend) {
+                existingLegend.remove();
+            }
+
+            // Create legend control
+            const legend = L.control({ position: 'bottomright' });
+
+            legend.onAdd = function (map) {
+                const div = L.DomUtil.create('div', 'info legend');
+                div.id = 'bufferzone-legend';
+                div.innerHTML += '<h4>Drift Reduction</h4>';
+
+                // Add legend items for each unique drift reduction value
+                driftValues.forEach(value => {
+                    div.innerHTML +=
+                        '<i style="background:' + colorMap[value] + '"></i> ' +
+                        value + '%<br>';
+                });
+
+                return div;
+            };
+
+            legend.addTo(map);
+        }
+
+        // Function to create legend for vareas
+        function createVareaLegend(vareaTypes, colorMap) {
+            // Remove existing legend if any
+            const existingLegend = document.getElementById('varea-legend');
+            if (existingLegend) {
+                existingLegend.remove();
+            }
+
+            // Create legend control
+            const legend = L.control({ position: 'bottomleft' });
+
+            legend.onAdd = function (map) {
+                const div = L.DomUtil.create('div', 'info legend');
+                div.id = 'varea-legend';
+                div.innerHTML += '<h4>Vulnerable Area Types</h4>';
+
+                // Add legend items for each unique varea type
+                vareaTypes.forEach(type => {
+                    div.innerHTML +=
+                        '<i style="background:' + colorMap[type] + '"></i> ' +
+                        (type.charAt(0).toUpperCase() + type.slice(1)) + '<br>';
+                });
+
+                return div;
+            };
+
+            legend.addTo(map);
+        }
+
+        // Function to create legend for slopes with fixed 0-10% range
+        function createSlopeLegend() {
+            // Remove existing legend if any
+            const existingLegend = document.getElementById('slope-legend');
+            if (existingLegend) {
+                existingLegend.remove();
+            }
+
+            // Create legend control
+            const legend = L.control({ position: 'topleft' });
+
+            legend.onAdd = function (map) {
+                const div = L.DomUtil.create('div', 'info legend');
+                div.id = 'slope-legend';
+                div.innerHTML += '<h4>Field Slopes</h4>';
+
+                // Create a gradient legend for slopes from 0% to 10%
+                const steps = [0, 2, 4, 6, 8, 10];
+                steps.forEach(value => {
+                    div.innerHTML +=
+                        '<i style="background:' + getSlopeColor(value) + '"></i> ' +
+                        value + '%' + (value < 10 ? ' - ' + (value + 2) + '%' : '+') + '<br>';
+                });
+
+                return div;
+            };
+
+            legend.addTo(map);
+        }
+    });
+
+
+
+
+    // Download GeoJSON
+    document.getElementById('download-geojson').addEventListener('click', function () {
+        const dataToDownload = resultGeojson || geojsonData;
+
+        if (!dataToDownload) {
+
+            document.getElementById('results').innerHTML = 'No GeoJSON data available to download.';
+            document.getElementById('results').style.color = 'red';
+            return;
+        }
+
+        const dataStr = JSON.stringify(dataToDownload, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(dataBlob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'bufferzones.geojson';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
+</script>
+<footer>© 2026 Syngenta · All rights reserved</footer>
+</body>
+
+</html>
