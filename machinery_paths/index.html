@@ -647,6 +647,16 @@
             color: #ffdd57;
             min-height: 1.2em;
         }
+
+        @keyframes flash {
+            from {
+                opacity: 1;
+            }
+
+            to {
+                opacity: 0;
+            }
+        }
     </style>
 </head>
 
@@ -656,10 +666,13 @@
     <div id="topbar">
 
         <div>
-            <div style="font-size:1.1rem;color:#e94560;font-weight:700;"> 🌾Machinery Path Planner
+            <div style="font-size:0.6rem;color:#ff5694;margin-top:2px;animation: flash 1s infinite alternate;">Internal
+                use only - Do not distribute outside Syngenta </div>
+
+            <div style="font-size:1.1rem;color:#45e95e;font-weight:700;"> 🌾Machinery Path Planner
             </div>
             <div style="font-size:0.78rem;color:#56b4ff;margin-top:2px;">Digital Sustainability &amp; Soil
-                Health Team</div>
+                Health, Syngenta</div>
         </div>
 
 

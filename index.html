@@ -93,36 +93,51 @@
       font-size: 0.75rem;
       color: #555;
     }
+
+    @keyframes flash {
+      from {
+        opacity: 1;
+      }
+      to {
+        opacity: 0;
+      }
+    }
   </style>
 </head>
 
 <body>
   <header>
-    <h1>k-said</h1>
-    <p>AgriTech precision tools</p>
+    <div style="font-size:0.78rem;color:#ff5694;margin-top:2px;animation: flash 1s infinite alternate;">Internal use only -Do not distribute outside Syngenta-</div>
+    </div>
+    <h2>Said Kharbouche</h2>
+    <div style="font-size:0.78rem;color:#56b4ff;margin-top:2px;">Digital Sustainability &amp; Soil
+      Health</div>
+    <div style="font-size:0.78rem;color:#56b4ff;margin-top:2px;">Syngenta</div>
+    </div>
   </header>
 
   <div class="services">
     <a class="card" href="/machinery_paths/">
       <div class="card-icon">🚜</div>
       <h2>Machinery Paths</h2>
-      <p>Contour-guided path planning for field machinery with real-time route optimisation.</p>
+      <p>Automatic planning and routing for better sustainability and efficiency.</p>
     </a>
 
     <a class="card" href="/bufferzones/">
       <div class="card-icon">🌿</div>
       <h2>Buffer Zones</h2>
-      <p>Automatic generation and visualisation of protection buffer zones around field boundaries.</p>
+      <p>Automatic generation and visualisation of buffer zones to protect vulnerable areas.</p>
     </a>
 
-    <a class="card" href="/yeld-pred/">
+    <a class="card" href="/yield-map-pred/">
       <div class="card-icon">📈</div>
-      <h2>Yield Prediction</h2>
-      <p>Machine-learning driven crop yield forecasting based on field geometry and sensor data.</p>
+      <h2>Yield Map Prediction</h2>
+      <p>In-season yield <b>map</b> using remote sensing, weather and elevation data.
+      </p>
     </a>
   </div>
 
-  <footer>© 2026 k-said · All rights reserved</footer>
+  <footer>© 2026 Syngenta · All rights reserved</footer>
 </body>
 
 </html>
