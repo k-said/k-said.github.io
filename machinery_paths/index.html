@@ -18,6 +18,13 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
     <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 
+    <!-- Leaflet Control Geocoder (location search) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder@2.4.0/dist/Control.Geocoder.css" />
+    <script src="https://unpkg.com/leaflet-control-geocoder@2.4.0/dist/Control.Geocoder.js"></script>
+
+    <!-- Togeojson (KML support) -->
+    <script src="https://unpkg.com/@tmcw/togeojson@5.8.1/dist/togeojson.umd.js"></script>
+
     <style>
         * {
             box-sizing: border-box;
@@ -663,6 +670,66 @@
             font-size: 0.75rem;
             color: #555;
         }
+
+        /* ── Geocoder search bar ── */
+        .leaflet-control-geocoder {
+            background: rgba(22, 33, 62, 0.95) !important;
+            border: 1px solid #0f3460 !important;
+            border-radius: 6px !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) !important;
+        }
+
+        .leaflet-control-geocoder-form input {
+            background: #1a1a2e !important;
+            color: #eee !important;
+            border: 1px solid #444 !important;
+            border-radius: 4px !important;
+            font-size: 0.85rem !important;
+        }
+
+        .leaflet-control-geocoder-form input::placeholder {
+            color: #888 !important;
+        }
+
+        .leaflet-control-geocoder-alternatives {
+            background: rgba(22, 33, 62, 0.97) !important;
+            border: 1px solid #0f3460 !important;
+        }
+
+        .leaflet-control-geocoder-alternatives li {
+            color: #eee !important;
+            border-bottom: 1px solid #0f3460 !important;
+        }
+
+        .leaflet-control-geocoder-alternatives li:hover,
+        .leaflet-control-geocoder-alternatives li.leaflet-control-geocoder-selected {
+            background: #0f3460 !important;
+        }
+
+        .leaflet-control-geocoder-icon {
+            filter: invert(0.85) !important;
+        }
+
+        /* ── Boundary upload button ── */
+        #btnUploadBnd {
+            background: #0f3460;
+            color: #eee;
+            border: 1px solid #56b4ff;
+            width: 100%;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        #btnUploadBnd input[type=file] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
     </style>
 </head>
 
@@ -1136,6 +1203,10 @@
 
                 <h3>🖊 Boundary</h3>
                 <button id="btnDraw">Draw polygon on map</button>
+                <button id="btnUploadBnd">
+                    <input type="file" id="fileBndUpload" accept=".geojson,.json,.kml,.shp" />
+                    📂 Upload boundary file
+                </button>
                 <button id="btnClearBnd">✕ Clear boundary</button>
 
                 <h3>⚙ Parameters</h3>
@@ -1337,6 +1408,25 @@
         };
 
         map.setView([50, 10], 15);
+
+        // =============================================================
+        // Geocoder – location search
+        // =============================================================
+        const geocoder = L.Control.geocoder({
+            defaultMarkGeocode: false,
+            placeholder: 'Search location…',
+            collapsed: true,
+            position: 'topleft',
+            geocoder: L.Control.Geocoder.nominatim(),
+        }).on('markgeocode', function (e) {
+            const bbox = e.geocode.bbox;
+            map.fitBounds(bbox, { maxZoom: 16 });
+            // Drop a temporary marker
+            const center = e.geocode.center;
+            const marker = L.marker(center).addTo(map)
+                .bindPopup(e.geocode.name).openPopup();
+            setTimeout(() => map.removeLayer(marker), 8000);
+        }).addTo(map);
 
         // =============================================================
         // Sidebar toggle
@@ -2172,6 +2262,7 @@
         document.getElementById('fileBoundary').onchange = function () {
             readFile(this, geojson => {
                 addGeoJSONBoundary(geojson);
+                loadBoundaryIntoDrawnItems(geojson);
                 document.getElementById('lblBoundary').textContent = '✅ ' + this.files[0].name;
                 document.getElementById('lblBoundary').className = 'loaded';
             });
@@ -2409,6 +2500,75 @@
                 document.getElementById('contourEditStatus').textContent = '';
                 document.getElementById('btnRecalcContour').disabled = true;
             }
+        }
+
+        // =============================================================
+        // Boundary upload (sidebar button) – supports GeoJSON & KML
+        // =============================================================
+        document.getElementById('fileBndUpload').onchange = function () {
+            const file = this.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = ev => {
+                try {
+                    let geojson;
+                    const ext = file.name.split('.').pop().toLowerCase();
+                    if (ext === 'kml') {
+                        const parser = new DOMParser();
+                        const kmlDoc = parser.parseFromString(ev.target.result, 'text/xml');
+                        geojson = toGeoJSON.kml(kmlDoc);
+                    } else {
+                        geojson = JSON.parse(ev.target.result);
+                    }
+                    loadBoundaryIntoDrawnItems(geojson);
+                    document.getElementById('btnUploadBnd').querySelector('input').value = '';
+                } catch (err) {
+                    alert('Could not parse boundary file: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        };
+
+        /**
+         * Parse a GeoJSON FeatureCollection / Feature / Geometry and add the
+         * first Polygon/MultiPolygon found into drawnItems, then centre the map.
+         */
+        function loadBoundaryIntoDrawnItems(geojson) {
+            // Normalise to a list of features
+            let features = [];
+            if (geojson.type === 'FeatureCollection') features = geojson.features || [];
+            else if (geojson.type === 'Feature') features = [geojson];
+            else features = [{ type: 'Feature', properties: {}, geometry: geojson }];
+
+            // Find the first polygon geometry
+            let polyCoords = null;
+            for (const f of features) {
+                const g = f.geometry;
+                if (!g) continue;
+                if (g.type === 'Polygon') { polyCoords = g.coordinates; break; }
+                if (g.type === 'MultiPolygon') { polyCoords = g.coordinates[0]; break; }
+            }
+
+            if (!polyCoords) {
+                alert('No polygon geometry found in the uploaded file.');
+                return;
+            }
+
+            // Convert [lon,lat] rings → Leaflet [lat,lon]
+            const latLngs = polyCoords[0].map(c => [c[1], c[0]]);
+
+            // Clear previous boundary and add the new one
+            drawnItems.clearLayers();
+            const polygon = L.polygon(latLngs, {
+                color: '#e94560', fillOpacity: 0.15, weight: 2.5
+            });
+            drawnItems.addLayer(polygon);
+
+            // Centre the map on the uploaded boundary
+            map.fitBounds(polygon.getBounds(), { padding: [40, 40] });
+
+            document.getElementById('genStatus').textContent = 'Boundary loaded. Press Generate paths.';
+            setTimeout(updateOrientArrow, 50);
         }
 
         // Load edited contour from file
