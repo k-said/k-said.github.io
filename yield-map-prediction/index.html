@@ -442,6 +442,16 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="target">Prediction Target</label>
+                    <select id="target">
+                        <option value="YIELD_DRYED_TN_HA_avr_smoothed">Yield Dried (Ton/Ha)</option>
+                        <option value="A_YLD_MOISTURE_avr_smoothed">Yield Moisture</option>
+                        <option value="A_YLD_WMAS_PER_AREA_avr_smoothed">Yield Wet Mass/Area</option>
+                        <option value="A_YLD_VOL_PER_AREA_avr_smoothed">Yield Volume/Area</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
                     <label for="plantingDate">Planting Date</label>
                     <input type="date" id="plantingDate" value="2021-04-15">
                     <div id="plantingDateError" class="validation-error hidden"></div>
@@ -481,6 +491,21 @@
                         <option value="map">Map</option>
                         <option value="hybrid">Hybrid</option>
                     </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Map Mode</label>
+                    <div class="radio-group">
+                        <label>
+                            <input type="radio" name="mapMode" value="relative" checked>
+                            Relative (top 5%)
+                        </label>
+                        <label>
+                            <input type="radio" name="mapMode" value="absolute">
+                            Absolute
+                        </label>
+                    </div>
+                    <div class="help-text">Relative: colour shows % of top-5% value</div>
                 </div>
             </div>
             <div class="panel">
@@ -544,11 +569,11 @@
                     </div>
                 </div>
             </div>
-        </div>
-        <div id="legend"
-            style="position: absolute; bottom: 20px; right: 20px; background: white; padding: 15px; border-radius: 5px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); z-index: 1000;">
-            <h4 style="margin: 0 0 10px 0;">Yield (Ton/Ha)</h4>
-            <div id="legendContent"></div>
+
+            <div class="panel" id="infoPanel" style="display: none;">
+                <h3>📋 Prediction Info</h3>
+                <div id="infoContent" style="font-size: 12px;"></div>
+            </div>
         </div>
         <div class="map-container">
             <div id="map"></div>
@@ -591,6 +616,7 @@
 
         // Set satellite as default
         let currentBaseLayer = baseLayers.satellite;
+        let currentMapType = 'satellite';
         currentBaseLayer.addTo(map);
 
         // Feature groups
@@ -709,7 +735,7 @@
 
             // Remove current base layer
             map.removeLayer(currentBaseLayer);
-            if (mapType === 'hybrid') {
+            if (currentMapType === 'hybrid') {
                 map.removeLayer(hybridLabels);
             }
 
@@ -728,6 +754,8 @@
                 hybridLabels.addTo(map);
                 logMessage('Switched to Hybrid view', 'info');
             }
+
+            currentMapType = mapType;
         }
 
         function loadDefaultBoundary() {
@@ -788,18 +816,32 @@
             return colors[0].color;
         }
 
-        function updateLegend(minYield, maxYield, yields, avgYield, stdDev) {
+        function updateLegend(minYield, maxYield, yields, avgYield, stdDev, isRelative, p95) {
+            const legendDiv = document.getElementById('legend');
             const legendContent = document.getElementById('legendContent');
+            const target = document.getElementById('target').value;
+            legendDiv.querySelector('h4').textContent = target.replace(/_avr_smoothed$/, '').replace(/_/g, ' ');
 
-            // Create legend based on standard deviations
-            const legendItems = [
-                { label: `≥ ${(avgYield + stdDev).toFixed(1)} (+1σ)`, color: '#00FF00' },
-                { label: `${(avgYield + 0.5 * stdDev).toFixed(1)} (+0.5σ)`, color: '#9ACD32' },
-                { label: `${avgYield.toFixed(1)} (μ)`, color: '#FFFF00' },
-                { label: `${(avgYield - 0.5 * stdDev).toFixed(1)} (-0.5σ)`, color: '#FFA500' },
-                { label: `${(avgYield - stdDev).toFixed(1)} (-1σ)`, color: '#FF4500' },
-                { label: `≤ ${(avgYield - 2 * stdDev).toFixed(1)} (-2σ)`, color: '#FF0000' }
-            ];
+            let legendItems;
+            if (isRelative) {
+                legendItems = [
+                    { label: `≥ 100% of top-5% (${p95.toFixed(2)})`, color: '#00FF00' },
+                    { label: `95 – 100%`, color: '#9ACD32' },
+                    { label: `90 – 95%`, color: '#FFFF00' },
+                    { label: `85 – 90%`, color: '#FFA500' },
+                    { label: `80 – 85%`, color: '#FF4500' },
+                    { label: `< 80%`, color: '#FF0000' }
+                ];
+            } else {
+                legendItems = [
+                    { label: `≥ ${(avgYield + stdDev).toFixed(2)} (+1σ)`, color: '#00FF00' },
+                    { label: `${(avgYield + 0.5 * stdDev).toFixed(2)} (+0.5σ)`, color: '#9ACD32' },
+                    { label: `${avgYield.toFixed(2)} (μ)`, color: '#FFFF00' },
+                    { label: `${(avgYield - 0.5 * stdDev).toFixed(2)} (-0.5σ)`, color: '#FFA500' },
+                    { label: `${(avgYield - stdDev).toFixed(2)} (-1σ)`, color: '#FF4500' },
+                    { label: `≤ ${(avgYield - 2 * stdDev).toFixed(2)} (-2σ)`, color: '#FF0000' }
+                ];
+            }
 
             legendContent.innerHTML = legendItems.map(item => `
         <div style="display: flex; align-items: center; margin: 5px 0;">
@@ -1015,7 +1057,7 @@
 
 
 
-        function displayPrediction(predictionData) {
+        function displayPrediction(predictionData, info) {
             predictionLayer.clearLayers();
 
             if (!predictionData || !predictionData.features) {
@@ -1026,37 +1068,42 @@
             latestPredictionData = predictionData;
             document.getElementById('downloadYieldBtn').disabled = false;
 
-            const yields = [];
+            const target = document.getElementById('target').value;
+            const isRelative = document.querySelector('input[name="mapMode"]:checked').value === 'relative';
 
-            // First pass: collect all yields to calculate mean and stdDev
+            const yields = [];
             predictionData.features.forEach(feature => {
-                const yieldValue = feature.properties.YIELD_DRYED_TN_HA_avr_smoothed;
-                yields.push(yieldValue);
+                const v = feature.properties[target];
+                if (v != null) yields.push(v);
             });
+
+            if (yields.length === 0) {
+                logMessage(`No values found for target "${target}"`, 'error');
+                return;
+            }
 
             const avgYield = yields.reduce((a, b) => a + b, 0) / yields.length;
             const variance = yields.reduce((sum, val) => sum + Math.pow(val - avgYield, 2), 0) / yields.length;
             const stdDev = Math.sqrt(variance);
+            const p95 = percentile(yields, 95);
 
-            // Second pass: create polygons with colors based on stdDev
             predictionData.features.forEach(feature => {
-                const yieldValue = feature.properties.YIELD_DRYED_TN_HA_avr_smoothed;
-                const color = getYieldColor(yieldValue, avgYield, stdDev);
+                const yieldValue = feature.properties[target];
+                if (yieldValue == null) return;
+                const color = isRelative
+                    ? getRelativeColor(yieldValue, p95)
+                    : getYieldColor(yieldValue, avgYield, stdDev);
 
                 const layer = L.geoJSON(feature, {
-                    style: {
-                        fillColor: color,
-                        fillOpacity: 0.7,
-                        color: '#333',
-                        weight: 1
-                    }
+                    style: { fillColor: color, fillOpacity: 0.7, color: '#333', weight: 1 }
                 });
 
-                layer.bindPopup(`
-            <strong>Yield Prediction</strong><br>
-            ${yieldValue.toFixed(2)} Ton/Ha
-        `);
-
+                const pctOfP95 = p95 > 0 ? ((yieldValue / p95) * 100).toFixed(1) : '-';
+                layer.bindPopup(
+                    `<strong>${target.replace(/_avr_smoothed$/, '').replace(/_/g, ' ')}</strong><br>` +
+                    `Value: ${yieldValue.toFixed(3)}<br>` +
+                    `% of top-5%: ${pctOfP95}%`
+                );
                 predictionLayer.addLayer(layer);
             });
 
@@ -1066,16 +1113,65 @@
             document.getElementById('avgYield').textContent = avgYield.toFixed(2);
             document.getElementById('polygonCount').textContent = yields.length;
 
-            updateLegend(minYield, maxYield, yields, avgYield, stdDev);
+            updateLegend(minYield, maxYield, yields, avgYield, stdDev, isRelative, p95);
+            document.getElementById('legend').style.display = 'block';
 
-            logMessage(`Displayed ${yields.length} prediction polygons`, 'success');
-            logMessage(`Yield: μ=${avgYield.toFixed(2)}, σ=${stdDev.toFixed(2)}, range: ${minYield.toFixed(2)} - ${maxYield.toFixed(2)} Ton/Ha`, 'info');
+            logMessage(`Displayed ${yields.length} polygons | target: ${target}`, 'success');
+            logMessage(`μ=${avgYield.toFixed(3)}, σ=${stdDev.toFixed(3)}, p95=${p95.toFixed(3)}, range: ${minYield.toFixed(3)} – ${maxYield.toFixed(3)}`, 'info');
+
+            if (info) displayInfo(info);
         }
 
 
 
 
-        function updateProgressBar(secondsElapsed, totalSeconds = 20) {
+        // ── helper: nth percentile of an array ──────────────────────────────
+        function percentile(arr, p) {
+            const sorted = [...arr].sort((a, b) => a - b);
+            const idx = Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length));
+            return sorted[idx];
+        }
+
+        // ── relative colour: ratio to p95 ────────────────────────────────────
+        function getRelativeColor(value, p95) {
+            const ratio = p95 > 0 ? value / p95 : 0;
+            if (ratio >= 1.0) return '#00FF00';
+            if (ratio >= 0.95) return '#9ACD32';
+            if (ratio >= 0.90) return '#FFFF00';
+            if (ratio >= 0.85) return '#FFA500';
+            if (ratio >= 0.80) return '#FF4500';
+            return '#FF0000';
+        }
+
+        // ── display info panel ───────────────────────────────────────────────
+        function displayInfo(info) {
+            if (!info) return;
+            document.getElementById('infoPanel').style.display = 'block';
+            const rows = [
+                ['Crop', info.crop],
+                ['Country', info.country],
+                ['Target', info.y_target],
+                ['Planting Date', info.planting_date],
+                ['Required Inference Date', info.required_inference_date],
+                ['Required DAP', (info.required_ndays != null ? info.required_ndays + ' days' : '-')],
+                ['Adjusted Inference Date', info.adjusted_inference_date],
+                ['Adjusted DAP', (info.adjusted_ndays != null ? info.adjusted_ndays + ' days' : '-')],
+                ['Area', (info.area_ha != null ? info.area_ha.toFixed(2) + ' ha' : '-')],
+                ['NDVI dates available', (info.ndvi_time_series_dates ? info.ndvi_time_series_dates.length : '-')],
+                ['AOI ID', info.aoi_id || '-']
+            ];
+            document.getElementById('infoContent').innerHTML =
+                '<table style="width:100%;border-collapse:collapse;">' +
+                rows.map(([k, v]) =>
+                    `<tr style="border-bottom:1px solid #eee">
+                        <td style="padding:4px 6px;font-weight:600;color:#555;width:48%">${k}</td>
+                        <td style="padding:4px 6px;color:#333;word-break:break-all">${v != null ? v : '-'}</td>
+                    </tr>`
+                ).join('') +
+                '</table>';
+        }
+
+        function updateProgressBar(secondsElapsed, totalSeconds = 30) {
             const progressBar = document.getElementById('progressBar');
             const percentage = (secondsElapsed / totalSeconds) * 100;
             progressBar.style.width = `${percentage}%`;
@@ -1093,7 +1189,7 @@
                 secondsElapsed++;
                 updateProgressBar(secondsElapsed);
 
-                if (secondsElapsed >= 20) {
+                if (secondsElapsed >= 30) {
                     secondsElapsed = 0;
                 }
             }, 1000);
@@ -1126,7 +1222,9 @@
 
             const payload = {
                 field_name: document.getElementById('fieldName').value,
+                field_id: document.getElementById('fieldName').value,
                 crop: document.getElementById('crop').value,
+                target: document.getElementById('target').value,
                 planting_date: document.getElementById('plantingDate').value,
                 inference_date: inferenceDate,
                 first_request: isFirstRequest ? 1 : 0,
@@ -1154,15 +1252,38 @@
                     updateStatus(`Request #${requestCount} successful`, 'success');
                     logMessage(`✓ Request #${requestCount} successful (Status: ${response.status})`, 'success');
 
-                    if (data.status === 'success' && data.prediction) {
-                        displayPrediction(data.prediction);
-                        logMessage(`Prediction received with ${data.prediction.features?.length || 0} features`, 'success');
-                        logMessage('🎯 Yield map received - stopping polling', 'success');
+                    // Parse body string if present
+                    let body = null;
+                    if (data.body) {
+                        try { body = typeof data.body === 'string' ? JSON.parse(data.body) : data.body; }
+                        catch (e) { body = null; }
+                    }
+
+                    if (data.status === 'running') {
+                        updateStatus('Processing running – waiting…', 'running');
+                        logMessage('⏳ Status: running – will retry in 30 s', 'info');
+                    } else if (data.status === 'success' && body && body.prediction) {
+                        displayPrediction(body.prediction, body.info);
+                        logMessage(`Prediction: ${body.prediction.features?.length || 0} features`, 'success');
+
+                        // Log all info fields
+                        if (body.info) {
+                            Object.entries(body.info).forEach(([k, v]) => {
+                                if (!Array.isArray(v) && typeof v !== 'object') {
+                                    logMessage(`ℹ️ ${k}: ${v}`, 'info');
+                                }
+                            });
+                        }
+
+                        logMessage('🎯 Yield map received – stopping polling', 'success');
                         stopPolling();
-                    } else if (data.error) {
-                        logMessage(`API returned error: ${data.error}`, 'error');
+                    } else if (data.error || (body && body.error)) {
+                        const errMsg = data.error || body.error;
+                        logMessage(`API error: ${errMsg}`, 'error');
                         errorCount++;
                         updateStats();
+                    } else {
+                        logMessage(`Status: ${data.status || 'unknown'} – waiting…`, 'info');
                     }
                     console.log('Response:', data);
                 } else {
@@ -1173,8 +1294,8 @@
                     updateStats();
                 }
 
-                if (requestCount >= 20) {
-                    logMessage('⚠️ Maximum 20 requests reached - stopping polling', 'info');
+                if (requestCount >= 10) {
+                    logMessage('⚠️ Timeout: 10 requests × 30 s = 5 min – stopping polling', 'info');
                     stopPolling();
                     return;
                 }
@@ -1226,10 +1347,10 @@
             pollingInterval = setInterval(() => {
                 makeRequest();
                 startCountdown();
-            }, 20000);
+            }, 30000);
 
-            updateStatus('Polling active (every 20 seconds)', 'running');
-            logMessage('🚀 Polling started (interval: 20 seconds)', 'success');
+            updateStatus('Polling active (every 30 s, max 5 min)', 'running');
+            logMessage('🚀 Polling started (interval: 30 s, max 10 requests = 5 min)', 'success');
         }
 
         function stopPolling() {
