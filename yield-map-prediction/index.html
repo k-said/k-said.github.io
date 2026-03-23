@@ -422,8 +422,15 @@
                 <h3>⚙️ Configuration</h3>
 
                 <div class="form-group">
-                    <label for="fieldName">Field Name</label>
+                    <label for="fieldName">Field Name / Field ID</label>
                     <input type="text" id="fieldName" value="fieldTest67">
+                    <div class="help-text">Used as field_id when no boundary is drawn</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="cwoToken">CWO Token (optional)</label>
+                    <input type="password" id="cwoToken" placeholder="Required if no boundary drawn">
+                    <div class="help-text">Cropwise API token — needed to fetch boundary by field ID</div>
                 </div>
 
                 <div class="form-group">
@@ -498,14 +505,19 @@
                     <div class="radio-group">
                         <label>
                             <input type="radio" name="mapMode" value="relative" checked>
-                            Relative (top 5%)
+                            Relative
                         </label>
                         <label>
                             <input type="radio" name="mapMode" value="absolute">
                             Absolute
                         </label>
                     </div>
-                    <div class="help-text">Relative: colour shows % of top-5% value</div>
+                    <div style="margin-top:6px;display:flex;align-items:center;gap:6px">
+                        <label for="topPct" style="margin:0;white-space:nowrap">Top percentile:</label>
+                        <input type="number" id="topPct" min="1" max="99" value="95" style="width:60px">
+                        <span style="font-size:11px;color:#666">%</span>
+                    </div>
+                    <div class="help-text">Relative mode colours each pixel as % of the top-N% value</div>
                 </div>
             </div>
             <div class="panel">
@@ -574,6 +586,11 @@
                 <h3>📋 Prediction Info</h3>
                 <div id="infoContent" style="font-size: 12px;"></div>
             </div>
+
+            <div class="panel" id="ndviPanel" style="display: none;">
+                <h3>📈 NDVI Time Series</h3>
+                <canvas id="ndviChart" width="340" height="180"></canvas>
+            </div>
         </div>
         <div class="map-container">
             <div id="map"></div>
@@ -586,6 +603,7 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 
     <script>
         // Initialize map
@@ -786,11 +804,11 @@
 
         // Polling variables
         let pollingInterval = null;
-        let isFirstRequest = true;
         let requestCount = 0;
         let errorCount = 0;
         let nextRequestTime = null;
         let countdownInterval = null;
+        let ndviChartInstance = null;
         const API_URL = 'https://5nvdzq14y8.execute-api.eu-central-1.amazonaws.com/default/cad-yldmap-pred';
 
         // Color scale for yield visualization
@@ -816,7 +834,7 @@
             return colors[0].color;
         }
 
-        function updateLegend(minYield, maxYield, yields, avgYield, stdDev, isRelative, p95) {
+        function updateLegend(minYield, maxYield, yields, avgYield, stdDev, isRelative, pRef, topPct) {
             const legendDiv = document.getElementById('legend');
             const legendContent = document.getElementById('legendContent');
             const target = document.getElementById('target').value;
@@ -825,7 +843,7 @@
             let legendItems;
             if (isRelative) {
                 legendItems = [
-                    { label: `≥ 100% of top-5% (${p95.toFixed(2)})`, color: '#00FF00' },
+                    { label: `≥ 100% of top-${topPct}% (${pRef.toFixed(2)})`, color: '#00FF00' },
                     { label: `95 – 100%`, color: '#9ACD32' },
                     { label: `90 – 95%`, color: '#FFFF00' },
                     { label: `85 – 90%`, color: '#FFA500' },
@@ -1085,24 +1103,25 @@
             const avgYield = yields.reduce((a, b) => a + b, 0) / yields.length;
             const variance = yields.reduce((sum, val) => sum + Math.pow(val - avgYield, 2), 0) / yields.length;
             const stdDev = Math.sqrt(variance);
-            const p95 = percentile(yields, 95);
+            const topPct = parseInt(document.getElementById('topPct').value) || 95;
+            const pRef = percentile(yields, topPct);
 
             predictionData.features.forEach(feature => {
                 const yieldValue = feature.properties[target];
                 if (yieldValue == null) return;
                 const color = isRelative
-                    ? getRelativeColor(yieldValue, p95)
+                    ? getRelativeColor(yieldValue, pRef)
                     : getYieldColor(yieldValue, avgYield, stdDev);
 
                 const layer = L.geoJSON(feature, {
                     style: { fillColor: color, fillOpacity: 0.7, color: '#333', weight: 1 }
                 });
 
-                const pctOfP95 = p95 > 0 ? ((yieldValue / p95) * 100).toFixed(1) : '-';
+                const pctOfRef = pRef > 0 ? ((yieldValue / pRef) * 100).toFixed(1) : '-';
                 layer.bindPopup(
                     `<strong>${target.replace(/_avr_smoothed$/, '').replace(/_/g, ' ')}</strong><br>` +
                     `Value: ${yieldValue.toFixed(3)}<br>` +
-                    `% of top-5%: ${pctOfP95}%`
+                    `% of top-${topPct}%: ${pctOfRef}%`
                 );
                 predictionLayer.addLayer(layer);
             });
@@ -1113,11 +1132,11 @@
             document.getElementById('avgYield').textContent = avgYield.toFixed(2);
             document.getElementById('polygonCount').textContent = yields.length;
 
-            updateLegend(minYield, maxYield, yields, avgYield, stdDev, isRelative, p95);
+            updateLegend(minYield, maxYield, yields, avgYield, stdDev, isRelative, pRef, topPct);
             document.getElementById('legend').style.display = 'block';
 
             logMessage(`Displayed ${yields.length} polygons | target: ${target}`, 'success');
-            logMessage(`μ=${avgYield.toFixed(3)}, σ=${stdDev.toFixed(3)}, p95=${p95.toFixed(3)}, range: ${minYield.toFixed(3)} – ${maxYield.toFixed(3)}`, 'info');
+            logMessage(`μ=${avgYield.toFixed(3)}, σ=${stdDev.toFixed(3)}, p${topPct}=${pRef.toFixed(3)}, range: ${minYield.toFixed(3)} – ${maxYield.toFixed(3)}`, 'info');
 
             if (info) displayInfo(info);
         }
@@ -1143,32 +1162,110 @@
             return '#FF0000';
         }
 
-        // ── display info panel ───────────────────────────────────────────────
+        // ── display info panel — show ALL response info keys ────────────
         function displayInfo(info) {
             if (!info) return;
             document.getElementById('infoPanel').style.display = 'block';
-            const rows = [
-                ['Crop', info.crop],
-                ['Country', info.country],
-                ['Target', info.y_target],
-                ['Planting Date', info.planting_date],
-                ['Required Inference Date', info.required_inference_date],
-                ['Required DAP', (info.required_ndays != null ? info.required_ndays + ' days' : '-')],
-                ['Adjusted Inference Date', info.adjusted_inference_date],
-                ['Adjusted DAP', (info.adjusted_ndays != null ? info.adjusted_ndays + ' days' : '-')],
-                ['Area', (info.area_ha != null ? info.area_ha.toFixed(2) + ' ha' : '-')],
-                ['NDVI dates available', (info.ndvi_time_series_dates ? info.ndvi_time_series_dates.length : '-')],
-                ['AOI ID', info.aoi_id || '-']
-            ];
+
+            // Build rows for every key in info
+            const rows = [];
+            const arrayKeys = [];
+            for (const [k, v] of Object.entries(info)) {
+                if (Array.isArray(v)) {
+                    arrayKeys.push(k);
+                    rows.push([k, `[${v.length} items]`]);
+                } else if (v != null && typeof v === 'object') {
+                    rows.push([k, JSON.stringify(v)]);
+                } else if (typeof v === 'number') {
+                    rows.push([k, Number.isInteger(v) ? v : v.toFixed(4)]);
+                } else {
+                    rows.push([k, v != null ? v : '-']);
+                }
+            }
+
             document.getElementById('infoContent').innerHTML =
                 '<table style="width:100%;border-collapse:collapse;">' +
                 rows.map(([k, v]) =>
                     `<tr style="border-bottom:1px solid #eee">
-                        <td style="padding:4px 6px;font-weight:600;color:#555;width:48%">${k}</td>
-                        <td style="padding:4px 6px;color:#333;word-break:break-all">${v != null ? v : '-'}</td>
+                        <td style="padding:4px 6px;font-weight:600;color:#555;width:44%">${k}</td>
+                        <td style="padding:4px 6px;color:#333;word-break:break-all;font-size:11px">${v}</td>
                     </tr>`
                 ).join('') +
                 '</table>';
+
+            // Render NDVI chart if data present
+            if (info.ndvi_time_sries_mean && info.ndvi_time_series_dates) {
+                renderNDVIChart(info);
+            }
+        }
+
+        // ── NDVI time-series chart (mean ± std) ─────────────────────────────
+        function renderNDVIChart(info) {
+            const panel = document.getElementById('ndviPanel');
+            panel.style.display = 'block';
+            const ctx = document.getElementById('ndviChart').getContext('2d');
+
+            if (ndviChartInstance) ndviChartInstance.destroy();
+
+            const labels = info.ndvi_time_series_dates.map(d => {
+                // "20240503T162151+0000" → "2024-05-03"
+                return d.substring(0, 4) + '-' + d.substring(4, 6) + '-' + d.substring(6, 8);
+            });
+            const means = info.ndvi_time_sries_mean;
+            const stds = info.ndvi_time_sries_std || [];
+            const upper = means.map((m, i) => m + (stds[i] || 0));
+            const lower = means.map((m, i) => m - (stds[i] || 0));
+
+            ndviChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: 'NDVI mean',
+                            data: means,
+                            borderColor: '#388e3c',
+                            backgroundColor: 'rgba(56,142,60,0.15)',
+                            borderWidth: 2,
+                            pointRadius: 3,
+                            fill: false,
+                            tension: 0.3
+                        },
+                        {
+                            label: 'mean + std',
+                            data: upper,
+                            borderColor: 'rgba(56,142,60,0.3)',
+                            borderWidth: 1,
+                            borderDash: [4, 3],
+                            pointRadius: 0,
+                            fill: '+1',
+                            backgroundColor: 'rgba(56,142,60,0.10)',
+                            tension: 0.3
+                        },
+                        {
+                            label: 'mean - std',
+                            data: lower,
+                            borderColor: 'rgba(56,142,60,0.3)',
+                            borderWidth: 1,
+                            borderDash: [4, 3],
+                            pointRadius: 0,
+                            fill: false,
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } }
+                    },
+                    scales: {
+                        x: { ticks: { maxRotation: 60, font: { size: 9 } } },
+                        y: { title: { display: true, text: 'NDVI' }, min: 0, max: 1 }
+                    }
+                }
+            });
         }
 
         function updateProgressBar(secondsElapsed, totalSeconds = 30) {
@@ -1203,40 +1300,55 @@
             }
 
             const boundary = getBoundaryGeoJSON();
-            if (!boundary) {
-                updateStatus('No boundary defined', 'error');
-                logMessage('Request blocked: No boundary defined', 'error');
+            const fieldId = document.getElementById('fieldName').value;
+            const cwoToken = document.getElementById('cwoToken').value.trim();
+
+            if (!boundary && !fieldId) {
+                updateStatus('No boundary and no field ID', 'error');
+                logMessage('Request blocked: draw a boundary or provide a Field ID + CWO Token', 'error');
                 return;
             }
 
-            // Check if field is within US
-            const centroid = getCentroid(boundary);
-            if (!isInUS(centroid)) {
-                updateStatus('Field must be within United States', 'error');
-                logMessage(`Request blocked: Field centroid (${centroid.lat.toFixed(4)}, ${centroid.lng.toFixed(4)}) is outside US bounds`, 'error');
-                stopPolling();
+            if (!boundary && !cwoToken) {
+                updateStatus('CWO Token required when no boundary drawn', 'error');
+                logMessage('Request blocked: provide a CWO Token so the API can fetch the boundary by field ID', 'error');
                 return;
+            }
+
+            // Validate US bounds when a boundary is available
+            if (boundary) {
+                const centroid = getCentroid(boundary);
+                if (!isInUS(centroid)) {
+                    updateStatus('Field must be within United States', 'error');
+                    logMessage(`Request blocked: Field centroid (${centroid.lat.toFixed(4)}, ${centroid.lng.toFixed(4)}) is outside US bounds`, 'error');
+                    stopPolling();
+                    return;
+                }
             }
 
             const inferenceDate = calculateInferenceDate();
 
             const payload = {
-                field_name: document.getElementById('fieldName').value,
-                field_id: document.getElementById('fieldName').value,
+                field_name: fieldId,
+                field_id: fieldId,
                 crop: document.getElementById('crop').value,
                 target: document.getElementById('target').value,
                 planting_date: document.getElementById('plantingDate').value,
-                inference_date: inferenceDate,
-                first_request: isFirstRequest ? 1 : 0,
-                boundary: boundary
+                inference_date: inferenceDate
             };
+            if (boundary) {
+                payload.boundary = boundary;
+            }
+            if (cwoToken) {
+                payload.cwo_token = cwoToken;
+            }
 
             requestCount++;
             updateStats();
 
             try {
-                updateStatus(`Sending request #${requestCount} (first_request=${isFirstRequest ? 1 : 0})...`, 'running');
-                logMessage(`Sending request #${requestCount} (first_request=${isFirstRequest ? 1 : 0}, inference_date=${inferenceDate})`, 'info');
+                updateStatus(`Sending request #${requestCount}...`, 'running');
+                logMessage(`Sending request #${requestCount} (inference_date=${inferenceDate})`, 'info');
 
                 const response = await fetch(API_URL, {
                     method: 'POST',
@@ -1300,11 +1412,6 @@
                     return;
                 }
 
-                if (isFirstRequest) {
-                    isFirstRequest = false;
-                    logMessage('Subsequent requests will use first_request=0', 'info');
-                }
-
             } catch (error) {
                 const errorMsg = `Network error: ${error.message}`;
                 updateStatus(errorMsg, 'error');
@@ -1321,8 +1428,20 @@
                 return;
             }
 
-            // Validate boundary location
+            // Validate basics
             const boundary = getBoundaryGeoJSON();
+            const fieldId = document.getElementById('fieldName').value;
+            const cwoToken = document.getElementById('cwoToken').value.trim();
+            if (!boundary && !fieldId) {
+                updateStatus('No boundary and no field ID', 'error');
+                logMessage('Cannot start: draw a boundary or provide a Field ID + CWO Token', 'error');
+                return;
+            }
+            if (!boundary && !cwoToken) {
+                updateStatus('CWO Token required', 'error');
+                logMessage('Cannot start: provide a CWO Token so the API can fetch the boundary by field ID', 'error');
+                return;
+            }
             if (boundary) {
                 const centroid = getCentroid(boundary);
                 if (!isInUS(centroid)) {
@@ -1331,9 +1450,10 @@
                     return;
                 }
                 logMessage(`Field centroid: (${centroid.lat.toFixed(4)}, ${centroid.lng.toFixed(4)}) - within US ✓`, 'success');
+            } else {
+                logMessage(`No boundary drawn – API will fetch boundary for field_id=${fieldId}`, 'info');
             }
 
-            isFirstRequest = true;
             requestCount = 0;
             errorCount = 0;
             updateStats();
@@ -1364,7 +1484,6 @@
                 countdownInterval = null;
             }
 
-            isFirstRequest = true;
             document.getElementById('progressBar').style.width = '0%';
 
             document.getElementById('startBtn').disabled = false;
