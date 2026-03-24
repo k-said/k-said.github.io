@@ -405,7 +405,7 @@
 
 <body>
     <div class="header">
-        <h1>🌾 Yield Map Prediction (R&D Project)</h1>
+        <h1>🌾 Yield Map Prediction (Prototype)</h1>
         <div style="text-align: center; padding: 10px; background-color: #aaeb8b; border-top: 1px solid #ccc;">
             <p style="margin: 5px 0;">
                 <strong>Contact:</strong> Said Kharbouche |
@@ -1356,7 +1356,12 @@
 
                 const data = await response.json();
 
-                if (response.ok) {
+                // API Gateway 502/504 on subsequent requests = Lambda still running
+                if (!response.ok && (response.status === 502 || response.status === 504)) {
+                    updateStatus('Processing still running…', 'running');
+                    logMessage(`⏳ API Gateway timeout (${response.status}) – Lambda likely still processing | Now: ${now}`, 'info');
+                    console.log('Gateway timeout (expected while processing):', data);
+                } else if (response.ok) {
                     // Parse body string if present
                     let body = null;
                     if (data.body) {
@@ -1394,8 +1399,9 @@
                         logMessage(`Status: ${data.status || 'unknown'} | Now: ${now} | Started: ${startTime}`, 'info');
                     }
                     console.log('Response:', data);
-                } else {
-                    const errorMsg = `HTTP ${response.status}: ${data.error || JSON.stringify(data)}`;
+                } else if (!response.ok) {
+                    // Other HTTP errors (not 502/504)
+                    const errorMsg = `HTTP ${response.status}: ${data.message || data.error || JSON.stringify(data)}`;
                     updateStatus(errorMsg, 'error');
                     logMessage(`✗ ${errorMsg}`, 'error');
                     errorCount++;
