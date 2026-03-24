@@ -400,10 +400,234 @@
             font-size: 0.75rem;
             color: #555;
         }
+
+        .confidential-banner {
+            background: #1a1a1a;
+            text-align: center;
+            padding: 6px 10px;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #ff1744;
+            animation: flash-text 1s ease-in-out infinite;
+        }
+
+        @keyframes flash-text {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.25;
+            }
+        }
+
+        .unit-info-box {
+            background: #f0f4ff;
+            border: 1px solid #c5cae9;
+            border-radius: 4px;
+            padding: 8px 10px;
+            font-size: 11px;
+            margin-top: 8px;
+            line-height: 1.6;
+        }
+
+        .unit-info-box code {
+            background: #e8eaf6;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 11px;
+        }
+
+        .unit-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+            font-size: 12px;
+        }
+
+        .unit-toggle label {
+            font-weight: normal;
+            font-size: 12px;
+            margin: 0;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 36px;
+            height: 20px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .switch .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #ccc;
+            border-radius: 20px;
+            transition: .3s;
+        }
+
+        .switch .slider:before {
+            content: "";
+            position: absolute;
+            height: 14px;
+            width: 14px;
+            left: 3px;
+            bottom: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: .3s;
+        }
+
+        .switch input:checked+.slider {
+            background: #667eea;
+        }
+
+        .switch input:checked+.slider:before {
+            transform: translateX(16px);
+        }
+
+        /* ── Help Modal ── */
+        .help-btn {
+            position: fixed;
+            top: 62px;
+            right: 18px;
+            z-index: 10000;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            background: rgba(102, 126, 234, 0.9);
+            color: #fff;
+            font-size: 20px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+            transition: background .2s;
+        }
+
+        .help-btn:hover {
+            background: #764ba2;
+        }
+
+        .help-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 10001;
+            background: rgba(0, 0, 0, 0.55);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .help-overlay.visible {
+            display: flex;
+        }
+
+        .help-modal {
+            background: #fff;
+            border-radius: 10px;
+            width: 720px;
+            max-width: 92vw;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            padding: 30px 35px;
+            position: relative;
+        }
+
+        .help-modal h2 {
+            margin: 0 0 18px;
+            font-size: 22px;
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 8px;
+        }
+
+        .help-modal h3 {
+            margin: 20px 0 8px;
+            font-size: 16px;
+            color: #667eea;
+        }
+
+        .help-modal p,
+        .help-modal li {
+            font-size: 13.5px;
+            line-height: 1.7;
+            color: #444;
+        }
+
+        .help-modal ul,
+        .help-modal ol {
+            padding-left: 22px;
+            margin: 6px 0 12px;
+        }
+
+        .help-modal kbd {
+            background: #eee;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            padding: 1px 5px;
+            font-size: 12px;
+            font-family: monospace;
+        }
+
+        .help-modal .close-btn {
+            position: absolute;
+            top: 14px;
+            right: 18px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+            transition: color .2s;
+        }
+
+        .help-modal .close-btn:hover {
+            color: #333;
+        }
+
+        .help-modal table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 8px 0 14px;
+            font-size: 13px;
+        }
+
+        .help-modal th,
+        .help-modal td {
+            text-align: left;
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+        }
+
+        .help-modal th {
+            background: #f0f4ff;
+            font-weight: 600;
+        }
     </style>
 </head>
 
 <body>
+    <div class="confidential-banner">⚠ Internal use only — Do not share outside Syngenta ⚠</div>
     <div class="header">
         <h1>🌾 Yield Map Prediction (Prototype)</h1>
         <div style="text-align: center; padding: 10px; background-color: #aaeb8b; border-top: 1px solid #ccc;">
@@ -416,13 +640,148 @@
         </div>
     </div>
 
+    <!-- Help button -->
+    <button class="help-btn" onclick="toggleHelp()" title="Help">?</button>
+
+    <!-- Help modal -->
+    <div class="help-overlay" id="helpOverlay" onclick="if(event.target===this)toggleHelp()">
+        <div class="help-modal">
+            <button class="close-btn" onclick="toggleHelp()">&times;</button>
+
+            <h2>📖 Help &amp; User Guide</h2>
+
+            <h3>1. Quick Start</h3>
+            <ol>
+                <li><strong>Draw or upload a field boundary</strong> on the map (use the polygon tool on the left of the
+                    map, or upload a GeoJSON file).</li>
+                <li><strong>Set parameters</strong> in the sidebar: crop, country, planting date, inference date (or
+                    days-after-planting), and the prediction target.</li>
+                <li>Click <kbd>▶️ Start Polling</kbd> to submit the request and wait for results.</li>
+                <li>The yield map will appear on the map once processing completes.</li>
+            </ol>
+
+            <h3>2. Configuration Fields</h3>
+            <table>
+                <tr>
+                    <th>Field</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td>Field-Id / Field Name</td>
+                    <td>A name or CWO field ID. When no boundary is drawn, the system uses this ID + the CWO Token to
+                        fetch the field boundary from the Cropwise Operations API.</td>
+                </tr>
+                <tr>
+                    <td>CWO Token</td>
+                    <td>Cropwise Operations API token. Only required if you rely on field-ID lookup instead of
+                        drawing/uploading a boundary.</td>
+                </tr>
+                <tr>
+                    <td>Country</td>
+                    <td>Country where the field is located (US or AR). Auto-detected if a boundary is provided.</td>
+                </tr>
+                <tr>
+                    <td>Crop</td>
+                    <td>Crop type: <strong>Corn</strong> or <strong>Soy</strong>.</td>
+                </tr>
+                <tr>
+                    <td>Prediction Target</td>
+                    <td>Which yield variable to predict. See the unit info box for details on each target.</td>
+                </tr>
+                <tr>
+                    <td>Planting Date</td>
+                    <td>Date the crop was planted.</td>
+                </tr>
+                <tr>
+                    <td>Date Mode</td>
+                    <td><em>Inference Date</em>: pick a calendar date; <em>Days After Planting</em>: specify how many
+                        days after planting to run inference.</td>
+                </tr>
+                <tr>
+                    <td>Map Background</td>
+                    <td>Switch between Satellite, Map (OpenStreetMap), or Hybrid views.</td>
+                </tr>
+                <tr>
+                    <td>Map Mode</td>
+                    <td><em>Relative</em>: colours cells as a percentage of the top-N percentile value;
+                        <em>Absolute</em>: colours by raw yield value. Adjust the top percentile with the number input.
+                    </td>
+                </tr>
+            </table>
+
+            <h3>3. Boundary Tools</h3>
+            <ul>
+                <li><strong>Draw</strong>: Use the polygon tool on the map (top-left toolbar) to draw a field boundary.
+                </li>
+                <li><strong>Upload</strong>: Click <kbd>📁 Upload Boundary</kbd> to load a GeoJSON or JSON file
+                    containing a FeatureCollection.</li>
+                <li><strong>Clear</strong>: Remove the current boundary.</li>
+                <li><strong>Reset</strong>: Reload the built-in default boundary.</li>
+                <li><strong>Download</strong>: Export the current boundary as a GeoJSON file.</li>
+            </ul>
+
+            <h3>4. How Polling Works</h3>
+            <p>
+                After clicking <kbd>▶️ Start Polling</kbd>, the first request is sent to the API. Because the Lambda
+                function may take
+                longer than the API Gateway timeout (29 s), the first request may return a timeout — this is
+                <strong>expected</strong>.
+                The system then polls every 30 seconds (first wait is 60 s) for up to 5 minutes until a result is
+                available.
+            </p>
+            <ul>
+                <li><strong>Running</strong> means the server is still computing.</li>
+                <li><strong>Success</strong> means the yield map is ready and will be displayed automatically.</li>
+                <li><strong>Failed</strong> means an error occurred — check the Message Log for details.</li>
+            </ul>
+
+            <h3>5. Understanding the Results</h3>
+            <ul>
+                <li><strong>Yield Map</strong>: Each coloured cell (10 m × 10 m) shows the predicted yield value.</li>
+                <li><strong>Legend</strong>: Appears in the bottom-right corner. In <em>Relative</em> mode it shows
+                    percentages; in <em>Absolute</em> mode it shows raw yield values.</li>
+                <li><strong>Stats</strong>: The sidebar shows summary statistics (count, mean, std, min, max).</li>
+                <li><strong>NDVI Chart</strong>: Displays the mean NDVI time series (with ±1 std shading) used during
+                    inference.</li>
+                <li><strong>Info Panel</strong>: Shows metadata returned by the model (adjusted dates, area, etc.).</li>
+                <li><strong>Unit Toggle</strong>: Switch between SI/Metric and US units (bu/ac). Conversion is applied
+                    to the displayed values and legend.</li>
+            </ul>
+
+            <h3>6. Downloads</h3>
+            <ul>
+                <li><kbd>⬇️ Download Boundary</kbd>: Exports the field boundary as <code>.geojson</code>.</li>
+                <li><kbd>⬇️ Download Yield Map</kbd>: Exports the full prediction GeoJSON (enabled after a successful
+                    prediction).</li>
+            </ul>
+
+            <h3>7. Tips &amp; Troubleshooting</h3>
+            <ul>
+                <li>If you see <strong>502 / 504</strong> errors in the log, the server is likely still processing —
+                    just wait for the next poll.</li>
+                <li>Maximum field size is <strong>400 ha</strong> (configured on the server).</li>
+                <li>The prediction cache is active for a limited time. To force a fresh run on the same field, wait for
+                    the cache to expire or change the field ID.</li>
+                <li>Toggle <strong>Show Yield Map</strong> and <strong>Show Boundary</strong> checkboxes to show/hide
+                    layers.</li>
+            </ul>
+
+            <h3>8. Contact</h3>
+            <p>
+                For questions or issues, contact <strong>Said Kharbouche</strong> or check the
+                <a href="https://digitial-product-engineering.atlassian.net/wiki/spaces/DSASH/pages/5172199698/In-Season+Yield+Map+Prediction"
+                    target="_blank">Confluence Documentation</a>.
+            </p>
+        </div>
+    </div>
+
     <div class="container">
         <div class="sidebar">
             <div class="panel">
                 <h3>⚙️ Configuration</h3>
 
                 <div class="form-group">
-                    <label for="fieldName">Field Name / Field ID</label>
+                    <label for="fieldName">Field-Id or Field Name</label>
                     <input type="text" id="fieldName" value="fieldTest67">
                     <div class="help-text">Used as field_id when no boundary is drawn</div>
                 </div>
@@ -451,12 +810,28 @@
 
                 <div class="form-group">
                     <label for="target">Prediction Target</label>
-                    <select id="target">
+                    <select id="target" onchange="updateUnitDisplay()">
                         <option value="YIELD_DRYED_TN_HA_avr_smoothed">Yield Dried (Ton/Ha)</option>
-                        <option value="A_YLD_MOISTURE_avr_smoothed">Yield Moisture</option>
-                        <option value="A_YLD_WMAS_PER_AREA_avr_smoothed">Yield Wet Mass/Area</option>
-                        <option value="A_YLD_VOL_PER_AREA_avr_smoothed">Yield Volume/Area</option>
+                        <option value="A_YLD_MOISTURE_avr_smoothed">Yield Moisture (%)</option>
+                        <option value="A_YLD_WMAS_PER_AREA_avr_smoothed">Yield Wet Mass/Area (kg·m⁻²)</option>
+                        <option value="A_YLD_VOL_PER_AREA_avr_smoothed">Yield Volume/Area (l·m⁻²)</option>
                     </select>
+                    <div class="unit-info-box" id="unitInfoBox">
+                        <strong>Units:</strong><br>
+                        <code>A_YLD_WMAS_PER_AREA</code> → kg·m<sup>−2</sup><br>
+                        <code>A_YLD_MOISTURE</code> → %<br>
+                        <code>A_YLD_VOL_PER_AREA</code> → l·m<sup>−2</sup><br>
+                        <code>YIELD_DRYED</code> → Ton·Ha<sup>−1</sup>
+                    </div>
+                    <div class="unit-toggle">
+                        <span>SI / Metric</span>
+                        <label class="switch">
+                            <input type="checkbox" id="usUnitsToggle" onchange="toggleUSUnits()">
+                            <span class="slider"></span>
+                        </label>
+                        <span>US (bu/ac, …)</span>
+                    </div>
+                    <div class="help-text" id="currentUnitHint">Currently showing metric units</div>
                 </div>
 
                 <div class="form-group">
@@ -540,6 +915,22 @@
                     <button class="btn btn-success" onclick="downloadYieldMap()" id="downloadYieldBtn" disabled>⬇️
                         Download Yield Map</button>
                 </div>
+
+                <div style="margin-top: 15px;">
+                    <label>Layer Visibility</label>
+                    <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px;">
+                        <label
+                            style="display:flex;align-items:center;font-weight:normal;cursor:pointer;gap:6px;font-size:13px;">
+                            <input type="checkbox" id="toggleYieldMap" checked onchange="toggleYieldMapLayer()">
+                            Show Yield Map
+                        </label>
+                        <label
+                            style="display:flex;align-items:center;font-weight:normal;cursor:pointer;gap:6px;font-size:13px;">
+                            <input type="checkbox" id="toggleBoundary" checked onchange="toggleBoundaryLayer()">
+                            Show Boundary
+                        </label>
+                    </div>
+                </div>
             </div>
 
             <div class="panel">
@@ -590,7 +981,9 @@
 
             <div class="panel" id="ndviPanel" style="display: none;">
                 <h3>📈 NDVI Time Series</h3>
-                <canvas id="ndviChart" width="340" height="180"></canvas>
+                <div style="width:340px;height:220px;position:relative;">
+                    <canvas id="ndviChart"></canvas>
+                </div>
             </div>
         </div>
         <div class="map-container">
@@ -605,8 +998,17 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
 
     <script>
+        // ── Help modal toggle ──
+        function toggleHelp() {
+            document.getElementById('helpOverlay').classList.toggle('visible');
+        }
+        // Close on Escape key
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') document.getElementById('helpOverlay').classList.remove('visible'); });
+
         // Initialize map
         const map = L.map('map').setView([42.762, -93.533], 14);
 
@@ -646,6 +1048,7 @@
 
         // Store the latest prediction data
         let latestPredictionData = null;
+        let latestPredictionInfo = null;
 
         // Draw control - only polygon, no rectangle
         const drawControl = new L.Control.Draw({
@@ -827,11 +1230,74 @@
             return colors[0].color;
         }
 
+        // ── Unit conversion helpers ─────────────────────────────────────
+        // Conversion factors from SI → US
+        //   kg/m² → bu/ac  (for corn ≈ 56 lb/bu → 1 kg/m² = 159.57 bu/ac at ~56lb)
+        //   kg/m² → lb/ac  (1 kg/m² = 8921.79 lb/ac)
+        //   l/m²  → gal/ac (1 l/m² = 1069.07 gal/ac)
+        //   Ton/Ha→ bu/ac  (corn: 1 T/Ha ≈ 15.93 bu/ac at 56lb; soy: ≈ 14.87 bu/ac at 60lb)
+        const US_CONVERSIONS = {
+            'YIELD_DRYED_TN_HA_avr_smoothed': { factor_corn: 15.9326, factor_soy: 14.8699, unit: 'bu/ac', label: 'Yield Dried' },
+            'A_YLD_MOISTURE_avr_smoothed': { factor_corn: 1, factor_soy: 1, unit: '%', label: 'Yield Moisture' },
+            'A_YLD_WMAS_PER_AREA_avr_smoothed': { factor_corn: 159.326, factor_soy: 148.699, unit: 'bu/ac', label: 'Yield Wet Mass/Area' },
+            'A_YLD_VOL_PER_AREA_avr_smoothed': { factor_corn: 1069.07, factor_soy: 1069.07, unit: 'gal/ac', label: 'Yield Vol/Area' }
+        };
+
+        const SI_UNITS = {
+            'YIELD_DRYED_TN_HA_avr_smoothed': 'Ton/Ha',
+            'A_YLD_MOISTURE_avr_smoothed': '%',
+            'A_YLD_WMAS_PER_AREA_avr_smoothed': 'kg·m⁻²',
+            'A_YLD_VOL_PER_AREA_avr_smoothed': 'l·m⁻²'
+        };
+
+        function isUSUnits() {
+            return document.getElementById('usUnitsToggle').checked;
+        }
+
+        function getConversionFactor(targetKey) {
+            if (!isUSUnits()) return 1;
+            const crop = document.getElementById('crop').value;
+            const entry = US_CONVERSIONS[targetKey];
+            if (!entry) return 1;
+            return crop === 'soy' ? entry.factor_soy : entry.factor_corn;
+        }
+
+        function getCurrentUnitLabel(targetKey) {
+            if (isUSUnits()) {
+                const entry = US_CONVERSIONS[targetKey];
+                return entry ? entry.unit : '';
+            }
+            return SI_UNITS[targetKey] || '';
+        }
+
+        function convertValue(val, targetKey) {
+            return val * getConversionFactor(targetKey);
+        }
+
+        function updateUnitDisplay() {
+            const hint = document.getElementById('currentUnitHint');
+            const target = document.getElementById('target').value;
+            const unitLabel = getCurrentUnitLabel(target);
+            hint.textContent = isUSUnits()
+                ? `Currently showing US units (${unitLabel})`
+                : `Currently showing metric units (${unitLabel})`;
+        }
+
+        function toggleUSUnits() {
+            updateUnitDisplay();
+            // Re-render the map with converted values if data exists
+            if (latestPredictionData) {
+                displayPrediction(latestPredictionData, latestPredictionInfo);
+            }
+        }
+
         function updateLegend(minYield, maxYield, yields, avgYield, stdDev, isRelative, pRef, topPct) {
             const legendDiv = document.getElementById('legend');
             const legendContent = document.getElementById('legendContent');
             const target = document.getElementById('target').value;
-            legendDiv.querySelector('h4').textContent = target.replace(/_avr_smoothed$/, '').replace(/_/g, ' ');
+            const unitLabel = getCurrentUnitLabel(target);
+            legendDiv.querySelector('h4').textContent =
+                target.replace(/_avr_smoothed$/, '').replace(/_/g, ' ') + ' (' + unitLabel + ')';
 
             let legendItems;
             if (isRelative) {
@@ -1070,15 +1536,17 @@
             }
 
             latestPredictionData = predictionData;
+            latestPredictionInfo = info;
             document.getElementById('downloadYieldBtn').disabled = false;
 
             const target = document.getElementById('target').value;
             const isRelative = document.querySelector('input[name="mapMode"]:checked').value === 'relative';
+            const cf = getConversionFactor(target);
 
             const yields = [];
             predictionData.features.forEach(feature => {
                 const v = feature.properties[target];
-                if (v != null) yields.push(v);
+                if (v != null) yields.push(v * cf);
             });
 
             if (yields.length === 0) {
@@ -1092,9 +1560,12 @@
             const topPct = parseInt(document.getElementById('topPct').value) || 95;
             const pRef = percentile(yields, topPct);
 
+            const unitLabel = getCurrentUnitLabel(target);
+
             predictionData.features.forEach(feature => {
-                const yieldValue = feature.properties[target];
-                if (yieldValue == null) return;
+                const rawValue = feature.properties[target];
+                if (rawValue == null) return;
+                const yieldValue = rawValue * cf;
                 const color = isRelative
                     ? getRelativeColor(yieldValue, pRef)
                     : getYieldColor(yieldValue, avgYield, stdDev);
@@ -1106,7 +1577,7 @@
                 const pctOfRef = pRef > 0 ? ((yieldValue / pRef) * 100).toFixed(1) : '-';
                 layer.bindPopup(
                     `<strong>${target.replace(/_avr_smoothed$/, '').replace(/_/g, ' ')}</strong><br>` +
-                    `Value: ${yieldValue.toFixed(3)}<br>` +
+                    `Value: ${yieldValue.toFixed(3)} ${unitLabel}<br>` +
                     `% of top-${topPct}%: ${pctOfRef}%`
                 );
                 predictionLayer.addLayer(layer);
@@ -1123,6 +1594,11 @@
 
             logMessage(`Displayed ${yields.length} cells (10m×10m) | target: ${target}`, 'success');
             logMessage(`μ=${avgYield.toFixed(3)}, σ=${stdDev.toFixed(3)}, p${topPct}=${pRef.toFixed(3)}, range: ${minYield.toFixed(3)} – ${maxYield.toFixed(3)}`, 'info');
+
+            // Centre the map on the prediction results
+            if (predictionLayer.getLayers().length > 0) {
+                map.fitBounds(predictionLayer.getBounds(), { padding: [30, 30] });
+            }
 
             if (info) displayInfo(info);
         }
@@ -1193,23 +1669,37 @@
 
             if (ndviChartInstance) ndviChartInstance.destroy();
 
-            const labels = info.ndvi_time_series_dates.map(d => {
-                // "20240503T162151+0000" → "2024-05-03"
-                return d.substring(0, 4) + '-' + d.substring(4, 6) + '-' + d.substring(6, 8);
-            });
+            // Parse NDVI dates → "YYYY-MM-DD"
+            const dateStrings = info.ndvi_time_series_dates.map(d =>
+                d.substring(0, 4) + '-' + d.substring(4, 6) + '-' + d.substring(6, 8)
+            );
             const means = info.ndvi_time_sries_mean;
             const stds = info.ndvi_time_sries_std || [];
             const upper = means.map((m, i) => m + (stds[i] || 0));
             const lower = means.map((m, i) => m - (stds[i] || 0));
 
+            // Build {x, y} data points for a time scale
+            const meanData = dateStrings.map((d, i) => ({ x: d, y: means[i] }));
+            const upperData = dateStrings.map((d, i) => ({ x: d, y: upper[i] }));
+            const lowerData = dateStrings.map((d, i) => ({ x: d, y: lower[i] }));
+
+            // Planting & inference dates for vertical lines
+            const plantingDate = document.getElementById('plantingDate').value;   // "YYYY-MM-DD"
+            const inferenceDate = calculateInferenceDate();                         // "YYYY-MM-DD"
+
+            // Fixed x-axis range: from planting date – 14 days  to  inference date + 14 days
+            const xMin = new Date(plantingDate);
+            xMin.setDate(xMin.getDate() - 14);
+            const xMax = new Date(inferenceDate);
+            xMax.setDate(xMax.getDate() + 14);
+
             ndviChartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels,
                     datasets: [
                         {
                             label: 'NDVI mean',
-                            data: means,
+                            data: meanData,
                             borderColor: '#388e3c',
                             backgroundColor: 'rgba(56,142,60,0.15)',
                             borderWidth: 2,
@@ -1219,7 +1709,7 @@
                         },
                         {
                             label: 'mean + std',
-                            data: upper,
+                            data: upperData,
                             borderColor: 'rgba(56,142,60,0.3)',
                             borderWidth: 1,
                             borderDash: [4, 3],
@@ -1229,8 +1719,8 @@
                             tension: 0.3
                         },
                         {
-                            label: 'mean - std',
-                            data: lower,
+                            label: 'mean − std',
+                            data: lowerData,
                             borderColor: 'rgba(56,142,60,0.3)',
                             borderWidth: 1,
                             borderDash: [4, 3],
@@ -1244,11 +1734,58 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } }
+                        legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } },
+                        annotation: {
+                            annotations: {
+                                plantingLine: {
+                                    type: 'line',
+                                    xMin: plantingDate,
+                                    xMax: plantingDate,
+                                    borderColor: '#1565c0',
+                                    borderWidth: 2,
+                                    borderDash: [6, 3],
+                                    label: {
+                                        display: true,
+                                        content: 'Planting',
+                                        position: 'start',
+                                        backgroundColor: '#1565c0',
+                                        color: '#fff',
+                                        font: { size: 10 }
+                                    }
+                                },
+                                inferenceLine: {
+                                    type: 'line',
+                                    xMin: inferenceDate,
+                                    xMax: inferenceDate,
+                                    borderColor: '#c62828',
+                                    borderWidth: 2,
+                                    borderDash: [6, 3],
+                                    label: {
+                                        display: true,
+                                        content: 'Inference',
+                                        position: 'start',
+                                        backgroundColor: '#c62828',
+                                        color: '#fff',
+                                        font: { size: 10 }
+                                    }
+                                }
+                            }
+                        }
                     },
                     scales: {
-                        x: { ticks: { maxRotation: 60, font: { size: 9 } } },
-                        y: { title: { display: true, text: 'NDVI' }, min: 0, max: 1 }
+                        x: {
+                            type: 'time',
+                            time: { unit: 'month', tooltipFormat: 'yyyy-MM-dd', displayFormats: { month: 'MMM yy' } },
+                            min: xMin.toISOString().split('T')[0],
+                            max: xMax.toISOString().split('T')[0],
+                            ticks: { maxRotation: 45, font: { size: 9 } },
+                            title: { display: true, text: 'Date', font: { size: 11 } }
+                        },
+                        y: {
+                            title: { display: true, text: 'NDVI', font: { size: 11 } },
+                            min: 0,
+                            max: 1
+                        }
                     }
                 }
             });
@@ -1286,9 +1823,9 @@
                 return 'error';
             }
 
-            const boundary = getBoundaryGeoJSON();
+            let boundary = getBoundaryGeoJSON();
             const fieldId = document.getElementById('fieldName').value;
-            const cwoToken = document.getElementById('cwoToken').value.trim();
+            const cwoToken = document.getElementById('cwoToken').value.trim().replace(/^["']+|["']+$/g, '');
 
             if (!boundary && !fieldId) {
                 updateStatus('No boundary and no field ID', 'error');
@@ -1300,6 +1837,13 @@
                 updateStatus('CWO Token required when no boundary drawn', 'error');
                 logMessage('Request blocked: provide a CWO Token so the API can fetch the boundary by field ID', 'error');
                 return 'error';
+            }
+
+            // When using token + field-id, remove any drawn boundary so the API boundary is used
+            if (cwoToken && fieldId) {
+                drawnItems.clearLayers();
+                boundary = null;
+                logMessage('Boundary cleared — boundary will be fetched from Cropwise Operations via field-id + cwo_token (no boundary sent in API call)', 'info');
             }
 
             const inferenceDate = calculateInferenceDate();
@@ -1318,6 +1862,7 @@
             }
             if (cwoToken) {
                 payload.cwo_token = cwoToken;
+                payload.field_id = fieldId;
             }
 
             requestCount++;
@@ -1334,7 +1879,7 @@
                     updateStatus(`Checking status (#${requestCount})…`, 'running');
                     logMessage(`[#${requestCount}] Status check (inference_date=${inferenceDate})`, 'info');
                 }
-
+                <!-- alert('Request payload:\n' + JSON.stringify(payload, null, 2)); -->
                 const response = await fetch(API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1342,9 +1887,7 @@
                 });
 
                 // ── API Gateway 502/504 = Lambda still running or timed out ──
-                alert(`whole response: ${JSON.stringify(response)}`);
-                alert(`Response status: ${response.status}`);
-                if (!response.ok && (response.status === 'running')) {
+                if (!response.ok && (response.status === 502 || response.status === 504)) {
                     updateStatus('Processing still running…', 'running');
                     logMessage(`[#${requestCount}] ⏳ Status: running (API GW ${response.status}) | Time: ${now}`, 'info');
                     return 'running';
@@ -1384,8 +1927,10 @@
                     catch (e) { body = null; }
                 }
 
-                const status = data.status || (body && body.status) || 'unknown';
-                const startTime = data.processing_start_time || 'N/A';
+                // Detect status: explicit field, or infer 'success' if prediction data is present
+                const hasPrediction = (data.prediction) || (body && body.prediction);
+                const status = data.status || (body && body.status) || (hasPrediction ? 'success' : 'unknown');
+                const startTime = data.processing_start_time || (body && body.processing_start_time) || 'N/A';
 
                 logMessage(`[#${requestCount}] 📡 Status: ${status} | Time: ${now} | Started: ${startTime}`, 'info');
 
@@ -1463,7 +2008,7 @@
             // Validate basics
             const boundary = getBoundaryGeoJSON();
             const fieldId = document.getElementById('fieldName').value;
-            const cwoToken = document.getElementById('cwoToken').value.trim();
+            const cwoToken = document.getElementById('cwoToken').value.trim().replace(/^["']+|["']+$/g, '');
             if (!boundary && !fieldId) {
                 updateStatus('No boundary and no field ID', 'error');
                 logMessage('Cannot start: draw a boundary or provide a Field ID + CWO Token', 'error');
@@ -1543,10 +2088,29 @@
             drawnItems.clearLayers();
             predictionLayer.clearLayers();
             latestPredictionData = null;
+            latestPredictionInfo = null;
             document.getElementById('legend').style.display = 'none';
             document.getElementById('downloadYieldBtn').disabled = true;
             updateStatus('Boundary cleared', 'idle');
             logMessage('Boundary and predictions cleared', 'info');
+        }
+
+        function toggleYieldMapLayer() {
+            const show = document.getElementById('toggleYieldMap').checked;
+            if (show) {
+                if (!map.hasLayer(predictionLayer)) map.addLayer(predictionLayer);
+            } else {
+                if (map.hasLayer(predictionLayer)) map.removeLayer(predictionLayer);
+            }
+        }
+
+        function toggleBoundaryLayer() {
+            const show = document.getElementById('toggleBoundary').checked;
+            if (show) {
+                if (!map.hasLayer(drawnItems)) map.addLayer(drawnItems);
+            } else {
+                if (map.hasLayer(drawnItems)) map.removeLayer(drawnItems);
+            }
         }
 
         function downloadBoundary() {
