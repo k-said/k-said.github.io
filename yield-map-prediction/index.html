@@ -1341,16 +1341,29 @@
                     body: JSON.stringify(payload)
                 });
 
-                const data = await response.json();
-                console.log(`Response #${requestCount}:`, data);
-                logMessage(`[#${requestCount}] 📦 Full response: ${JSON.stringify(data).substring(0, 2000)}`, 'info');
-
-                // ── API Gateway 502/504 = Lambda still running ──
+                // ── API Gateway 502/504 = Lambda still running or timed out ──
                 if (!response.ok && (response.status === 502 || response.status === 504)) {
                     updateStatus('Processing still running…', 'running');
                     logMessage(`[#${requestCount}] ⏳ Status: running (API GW ${response.status}) | Time: ${now}`, 'info');
                     return 'running';
                 }
+
+                let data;
+                try {
+                    data = await response.json();
+                } catch (jsonErr) {
+                    const rawText = await response.text().catch(() => '');
+                    logMessage(`[#${requestCount}] ⚠️ Non-JSON response (${response.status}): ${rawText.substring(0, 500)}`, 'error');
+                    if (!response.ok) {
+                        updateStatus(`HTTP ${response.status} (non-JSON response)`, 'error');
+                        errorCount++;
+                        updateStats();
+                        return 'error';
+                    }
+                    data = {};
+                }
+                console.log(`Response #${requestCount}:`, data);
+                logMessage(`[#${requestCount}] 📦 Full response: ${JSON.stringify(data).substring(0, 2000)}`, 'info');
 
                 // ── Other HTTP errors ──
                 if (!response.ok) {
