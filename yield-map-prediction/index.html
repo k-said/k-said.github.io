@@ -437,6 +437,7 @@
                     <label for="country">Country</label>
                     <select id="country">
                         <option value="US">United States</option>
+                        <option value="AR">Argentina</option>
                     </select>
                 </div>
 
@@ -568,7 +569,7 @@
                     </div>
                     <div class="stat-box">
                         <div class="stat-value" id="polygonCount">0</div>
-                        <div class="stat-label">Polygons</div>
+                        <div class="stat-label">Cells (10m×10m)</div>
                     </div>
                 </div>
             </div>
@@ -720,14 +721,6 @@
             ]]
         };
 
-        // US bounds (approximate)
-        const US_BOUNDS = {
-            north: 49.384358,
-            south: 24.396308,
-            west: -125.0,
-            east: -66.93457
-        };
-
         function uploadGeoJSON(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -803,10 +796,10 @@
         });
 
         // Polling variables
-        let pollingInterval = null;
+        let pollingTimer = null;
+        let pollingStartTime = null;
         let requestCount = 0;
         let errorCount = 0;
-        let nextRequestTime = null;
         let countdownInterval = null;
         let ndviChartInstance = null;
         const API_URL = 'https://5nvdzq14y8.execute-api.eu-central-1.amazonaws.com/default/cad-yldmap-pred';
@@ -949,13 +942,6 @@
                 lat: totalLat / pointCount,
                 lng: totalLng / pointCount
             };
-        }
-
-        function isInUS(centroid) {
-            return centroid.lat >= US_BOUNDS.south &&
-                centroid.lat <= US_BOUNDS.north &&
-                centroid.lng >= US_BOUNDS.west &&
-                centroid.lng <= US_BOUNDS.east;
         }
 
         function validateDates() {
@@ -1135,7 +1121,7 @@
             updateLegend(minYield, maxYield, yields, avgYield, stdDev, isRelative, pRef, topPct);
             document.getElementById('legend').style.display = 'block';
 
-            logMessage(`Displayed ${yields.length} polygons | target: ${target}`, 'success');
+            logMessage(`Displayed ${yields.length} cells (10m×10m) | target: ${target}`, 'success');
             logMessage(`μ=${avgYield.toFixed(3)}, σ=${stdDev.toFixed(3)}, p${topPct}=${pRef.toFixed(3)}, range: ${minYield.toFixed(3)} – ${maxYield.toFixed(3)}`, 'info');
 
             if (info) displayInfo(info);
@@ -1274,9 +1260,9 @@
             progressBar.style.width = `${percentage}%`;
         }
 
-        function startCountdown() {
+        function startCountdown(totalSeconds = 30) {
             let secondsElapsed = 0;
-            updateProgressBar(0);
+            updateProgressBar(0, totalSeconds);
 
             if (countdownInterval) {
                 clearInterval(countdownInterval);
@@ -1284,9 +1270,9 @@
 
             countdownInterval = setInterval(() => {
                 secondsElapsed++;
-                updateProgressBar(secondsElapsed);
+                updateProgressBar(secondsElapsed, totalSeconds);
 
-                if (secondsElapsed >= 30) {
+                if (secondsElapsed >= totalSeconds) {
                     secondsElapsed = 0;
                 }
             }, 1000);
@@ -1315,22 +1301,12 @@
                 return;
             }
 
-            // Validate US bounds when a boundary is available
-            if (boundary) {
-                const centroid = getCentroid(boundary);
-                if (!isInUS(centroid)) {
-                    updateStatus('Field must be within United States', 'error');
-                    logMessage(`Request blocked: Field centroid (${centroid.lat.toFixed(4)}, ${centroid.lng.toFixed(4)}) is outside US bounds`, 'error');
-                    stopPolling();
-                    return;
-                }
-            }
-
             const inferenceDate = calculateInferenceDate();
 
             const payload = {
                 field_name: fieldId,
                 field_id: fieldId,
+                country: document.getElementById('country').value,
                 crop: document.getElementById('crop').value,
                 target: document.getElementById('target').value,
                 planting_date: document.getElementById('plantingDate').value,
@@ -1346,24 +1322,41 @@
             requestCount++;
             updateStats();
 
+            // ── First submission: fire request, ignore timeout, confirm ──
+            if (requestCount === 1) {
+                try {
+                    updateStatus('Submitting request…', 'running');
+                    logMessage(`Sending first request (inference_date=${inferenceDate})`, 'info');
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const data = await response.json();
+                    console.log('First request response:', data);
+                } catch (e) {
+                    console.log('First request timeout/error (expected):', e.message);
+                }
+                updateStatus('Request submitted successfully', 'success');
+                logMessage('✓ Request submitted successfully – checking status in 60 s', 'success');
+                return;
+            }
+
+            // ── Subsequent requests: check processing status ──
             try {
-                updateStatus(`Sending request #${requestCount}...`, 'running');
-                logMessage(`Sending request #${requestCount} (inference_date=${inferenceDate})`, 'info');
+                const now = new Date().toLocaleTimeString();
+                updateStatus(`Checking status (#${requestCount})…`, 'running');
+                logMessage(`Sending status check #${requestCount} (inference_date=${inferenceDate})`, 'info');
 
                 const response = await fetch(API_URL, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
 
                 const data = await response.json();
 
                 if (response.ok) {
-                    updateStatus(`Request #${requestCount} successful`, 'success');
-                    logMessage(`✓ Request #${requestCount} successful (Status: ${response.status})`, 'success');
-
                     // Parse body string if present
                     let body = null;
                     if (data.body) {
@@ -1371,14 +1364,17 @@
                         catch (e) { body = null; }
                     }
 
-                    if (data.status === 'running') {
-                        updateStatus('Processing running – waiting…', 'running');
-                        logMessage('⏳ Status: running – will retry in 30 s', 'info');
-                    } else if (data.status === 'success' && body && body.prediction) {
-                        displayPrediction(body.prediction, body.info);
-                        logMessage(`Prediction: ${body.prediction.features?.length || 0} features`, 'success');
+                    const startTime = data.processing_start_time || 'N/A';
 
-                        // Log all info fields
+                    if (data.status === 'running') {
+                        updateStatus('Processing running…', 'running');
+                        logMessage(`⏳ Status: running | Now: ${now} | Started: ${startTime}`, 'info');
+                    } else if (data.status === 'success' && body && body.prediction) {
+                        updateStatus('Prediction received!', 'success');
+                        logMessage(`✓ Status: success | Now: ${now} | Started: ${startTime}`, 'success');
+                        displayPrediction(body.prediction, body.info);
+                        logMessage(`Prediction: ${body.prediction.features?.length || 0} cells (10m×10m)`, 'success');
+
                         if (body.info) {
                             Object.entries(body.info).forEach(([k, v]) => {
                                 if (!Array.isArray(v) && typeof v !== 'object') {
@@ -1391,11 +1387,11 @@
                         stopPolling();
                     } else if (data.error || (body && body.error)) {
                         const errMsg = data.error || body.error;
-                        logMessage(`API error: ${errMsg}`, 'error');
+                        logMessage(`API error: ${errMsg} | Now: ${now} | Started: ${startTime}`, 'error');
                         errorCount++;
                         updateStats();
                     } else {
-                        logMessage(`Status: ${data.status || 'unknown'} – waiting…`, 'info');
+                        logMessage(`Status: ${data.status || 'unknown'} | Now: ${now} | Started: ${startTime}`, 'info');
                     }
                     console.log('Response:', data);
                 } else {
@@ -1404,12 +1400,6 @@
                     logMessage(`✗ ${errorMsg}`, 'error');
                     errorCount++;
                     updateStats();
-                }
-
-                if (requestCount >= 10) {
-                    logMessage('⚠️ Timeout: 10 requests × 30 s = 5 min – stopping polling', 'info');
-                    stopPolling();
-                    return;
                 }
 
             } catch (error) {
@@ -1423,7 +1413,7 @@
         }
 
         function startPolling() {
-            if (pollingInterval) {
+            if (pollingTimer) {
                 logMessage('Polling already running', 'info');
                 return;
             }
@@ -1442,41 +1432,50 @@
                 logMessage('Cannot start: provide a CWO Token so the API can fetch the boundary by field ID', 'error');
                 return;
             }
-            if (boundary) {
-                const centroid = getCentroid(boundary);
-                if (!isInUS(centroid)) {
-                    updateStatus('Field must be within United States', 'error');
-                    logMessage(`Cannot start: Field centroid (${centroid.lat.toFixed(4)}, ${centroid.lng.toFixed(4)}) is outside US bounds`, 'error');
-                    return;
-                }
-                logMessage(`Field centroid: (${centroid.lat.toFixed(4)}, ${centroid.lng.toFixed(4)}) - within US ✓`, 'success');
-            } else {
+            if (!boundary) {
                 logMessage(`No boundary drawn – API will fetch boundary for field_id=${fieldId}`, 'info');
             }
 
             requestCount = 0;
             errorCount = 0;
+            pollingStartTime = Date.now();
             updateStats();
 
             document.getElementById('startBtn').disabled = true;
             document.getElementById('stopBtn').disabled = false;
 
+            // First request immediately
             makeRequest();
-            startCountdown();
+            startCountdown(60);
 
-            pollingInterval = setInterval(() => {
+            // Schedule: 60 s after first, then every 30 s, max 5 min
+            schedulePoll();
+
+            updateStatus('Request submitted – checking in 60 s', 'running');
+            logMessage('🚀 Polling started (first check in 60 s, then every 30 s, max 5 min)', 'success');
+        }
+
+        function schedulePoll() {
+            // First gap 60 s, subsequent gaps 30 s
+            const delay = requestCount <= 1 ? 60000 : 30000;
+
+            pollingTimer = setTimeout(() => {
+                const elapsed = (Date.now() - pollingStartTime) / 1000;
+                if (elapsed >= 300) {
+                    logMessage('⚠️ 5 min timeout reached – stopping polling', 'info');
+                    stopPolling();
+                    return;
+                }
                 makeRequest();
-                startCountdown();
-            }, 30000);
-
-            updateStatus('Polling active (every 30 s, max 5 min)', 'running');
-            logMessage('🚀 Polling started (interval: 30 s, max 10 requests = 5 min)', 'success');
+                startCountdown(30);
+                schedulePoll();
+            }, delay);
         }
 
         function stopPolling() {
-            if (pollingInterval) {
-                clearInterval(pollingInterval);
-                pollingInterval = null;
+            if (pollingTimer) {
+                clearTimeout(pollingTimer);
+                pollingTimer = null;
             }
 
             if (countdownInterval) {
