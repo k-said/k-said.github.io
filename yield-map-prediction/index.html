@@ -1343,6 +1343,7 @@
 
                 const data = await response.json();
                 console.log(`Response #${requestCount}:`, data);
+                logMessage(`[#${requestCount}] 📦 Full response: ${JSON.stringify(data).substring(0, 2000)}`, 'info');
 
                 // ── API Gateway 502/504 = Lambda still running ──
                 if (!response.ok && (response.status === 502 || response.status === 504)) {
@@ -1355,7 +1356,7 @@
                 if (!response.ok) {
                     const errorMsg = `HTTP ${response.status}: ${data.message || data.error || JSON.stringify(data)}`;
                     updateStatus(errorMsg, 'error');
-                    logMessage(`[#${requestCount}] ✗ ${errorMsg}`, 'error');
+                    logMessage(`[#${requestCount}] ✗ Error response: ${JSON.stringify(data)}`, 'error');
                     errorCount++;
                     updateStats();
                     return 'error';
@@ -1410,7 +1411,7 @@
                 if (status === 'failed' || data.error || (body && body.error)) {
                     const errMsg = data.error || (body && body.error) || 'Unknown error';
                     updateStatus(`Error: ${errMsg}`, 'error');
-                    logMessage(`[#${requestCount}] ✗ Error: ${errMsg}`, 'error');
+                    logMessage(`[#${requestCount}] ✗ Error: ${JSON.stringify(body || data)}`, 'error');
                     errorCount++;
                     updateStats();
                     stopPolling();
@@ -1425,11 +1426,12 @@
                     // First request timeout expected (Lambda cold start > 29s API GW timeout)
                     updateStatus('Request submitted – waiting for processing', 'running');
                     logMessage(`[#${requestCount}] ⏳ First request timeout (expected on cold start) – will check in 60 s`, 'info');
+                    logMessage(`[#${requestCount}] 📦 Caught error: ${error.message}`, 'info');
                     return 'timeout';
                 }
                 const errorMsg = `Network error: ${error.message}`;
                 updateStatus(errorMsg, 'error');
-                logMessage(`[#${requestCount}] ✗ ${errorMsg}`, 'error');
+                logMessage(`[#${requestCount}] ✗ Network error: ${error.stack || error.message}`, 'error');
                 errorCount++;
                 updateStats();
                 console.error('Error:', error);
