@@ -1342,7 +1342,7 @@
                 });
 
                 // ── API Gateway 502/504 = Lambda still running or timed out ──
-                alert(`Response status: ${JSON.stringify(response)}`);
+                alert(`whole response: ${JSON.stringify(response)}`);
                 alert(`Response status: ${response.status}`);
                 if (!response.ok && (response.status === 'running')) {
                     updateStatus('Processing still running…', 'running');
