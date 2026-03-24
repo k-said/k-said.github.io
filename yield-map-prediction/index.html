@@ -1278,11 +1278,12 @@
             }, 1000);
         }
 
+        // Returns: 'success' | 'running' | 'failed' | 'error' | 'timeout'
         async function makeRequest() {
             if (!validateDates()) {
                 updateStatus('Invalid date configuration', 'error');
                 logMessage('Request blocked: Invalid date configuration', 'error');
-                return;
+                return 'error';
             }
 
             const boundary = getBoundaryGeoJSON();
@@ -1292,13 +1293,13 @@
             if (!boundary && !fieldId) {
                 updateStatus('No boundary and no field ID', 'error');
                 logMessage('Request blocked: draw a boundary or provide a Field ID + CWO Token', 'error');
-                return;
+                return 'error';
             }
 
             if (!boundary && !cwoToken) {
                 updateStatus('CWO Token required when no boundary drawn', 'error');
                 logMessage('Request blocked: provide a CWO Token so the API can fetch the boundary by field ID', 'error');
-                return;
+                return 'error';
             }
 
             const inferenceDate = calculateInferenceDate();
@@ -1322,31 +1323,17 @@
             requestCount++;
             updateStats();
 
-            // ── First submission: fire request, ignore timeout, confirm ──
-            if (requestCount === 1) {
-                try {
-                    updateStatus('Submitting request…', 'running');
-                    logMessage(`Sending first request (inference_date=${inferenceDate})`, 'info');
-                    const response = await fetch(API_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    const data = await response.json();
-                    console.log('First request response:', data);
-                } catch (e) {
-                    console.log('First request timeout/error (expected):', e.message);
-                }
-                updateStatus('Request submitted successfully', 'success');
-                logMessage('✓ Request submitted successfully – checking status in 60 s', 'success');
-                return;
-            }
+            const isFirst = requestCount === 1;
+            const now = new Date().toLocaleTimeString();
 
-            // ── Subsequent requests: check processing status ──
             try {
-                const now = new Date().toLocaleTimeString();
-                updateStatus(`Checking status (#${requestCount})…`, 'running');
-                logMessage(`Sending status check #${requestCount} (inference_date=${inferenceDate})`, 'info');
+                if (isFirst) {
+                    updateStatus('Submitting request…', 'running');
+                    logMessage(`[#${requestCount}] Sending first request (inference_date=${inferenceDate})`, 'info');
+                } else {
+                    updateStatus(`Checking status (#${requestCount})…`, 'running');
+                    logMessage(`[#${requestCount}] Status check (inference_date=${inferenceDate})`, 'info');
+                }
 
                 const response = await fetch(API_URL, {
                     method: 'POST',
@@ -1355,33 +1342,49 @@
                 });
 
                 const data = await response.json();
+                console.log(`Response #${requestCount}:`, data);
 
-                // API Gateway 502/504 on subsequent requests = Lambda still running
+                // ── API Gateway 502/504 = Lambda still running ──
                 if (!response.ok && (response.status === 502 || response.status === 504)) {
                     updateStatus('Processing still running…', 'running');
-                    logMessage(`⏳ API Gateway timeout (${response.status}) – Lambda likely still processing | Now: ${now}`, 'info');
-                    console.log('Gateway timeout (expected while processing):', data);
-                } else if (response.ok) {
-                    // Parse body string if present
-                    let body = null;
-                    if (data.body) {
-                        try { body = typeof data.body === 'string' ? JSON.parse(data.body) : data.body; }
-                        catch (e) { body = null; }
-                    }
+                    logMessage(`[#${requestCount}] ⏳ Status: running (API GW ${response.status}) | Time: ${now}`, 'info');
+                    return 'running';
+                }
 
-                    const startTime = data.processing_start_time || 'N/A';
+                // ── Other HTTP errors ──
+                if (!response.ok) {
+                    const errorMsg = `HTTP ${response.status}: ${data.message || data.error || JSON.stringify(data)}`;
+                    updateStatus(errorMsg, 'error');
+                    logMessage(`[#${requestCount}] ✗ ${errorMsg}`, 'error');
+                    errorCount++;
+                    updateStats();
+                    return 'error';
+                }
 
-                    if (data.status === 'running') {
-                        updateStatus('Processing running…', 'running');
-                        logMessage(`⏳ Status: running | Now: ${now} | Started: ${startTime}`, 'info');
-                    } else if (data.status === 'success' && body && body.prediction) {
+                // ── response.ok – parse body ──
+                let body = null;
+                if (data.body) {
+                    try { body = typeof data.body === 'string' ? JSON.parse(data.body) : data.body; }
+                    catch (e) { body = null; }
+                }
+
+                const status = data.status || (body && body.status) || 'unknown';
+                const startTime = data.processing_start_time || 'N/A';
+
+                logMessage(`[#${requestCount}] 📡 Status: ${status} | Time: ${now} | Started: ${startTime}`, 'info');
+
+                // ── SUCCESS ──
+                if (status === 'success') {
+                    const prediction = (body && body.prediction) || data.prediction;
+                    const info = (body && body.info) || data.info;
+
+                    if (prediction) {
                         updateStatus('Prediction received!', 'success');
-                        logMessage(`✓ Status: success | Now: ${now} | Started: ${startTime}`, 'success');
-                        displayPrediction(body.prediction, body.info);
-                        logMessage(`Prediction: ${body.prediction.features?.length || 0} cells (10m×10m)`, 'success');
+                        logMessage(`[#${requestCount}] ✓ Prediction: ${prediction.features?.length || 0} cells (10m×10m)`, 'success');
+                        displayPrediction(prediction, info);
 
-                        if (body.info) {
-                            Object.entries(body.info).forEach(([k, v]) => {
+                        if (info) {
+                            Object.entries(info).forEach(([k, v]) => {
                                 if (!Array.isArray(v) && typeof v !== 'object') {
                                     logMessage(`ℹ️ ${k}: ${v}`, 'info');
                                 }
@@ -1390,35 +1393,51 @@
 
                         logMessage('🎯 Yield map received – stopping polling', 'success');
                         stopPolling();
-                    } else if (data.error || (body && body.error)) {
-                        const errMsg = data.error || body.error;
-                        logMessage(`API error: ${errMsg} | Now: ${now} | Started: ${startTime}`, 'error');
-                        errorCount++;
-                        updateStats();
+                        return 'success';
                     } else {
-                        logMessage(`Status: ${data.status || 'unknown'} | Now: ${now} | Started: ${startTime}`, 'info');
+                        logMessage(`[#${requestCount}] ⚠️ Status success but no prediction data in response`, 'info');
+                        return 'running';
                     }
-                    console.log('Response:', data);
-                } else if (!response.ok) {
-                    // Other HTTP errors (not 502/504)
-                    const errorMsg = `HTTP ${response.status}: ${data.message || data.error || JSON.stringify(data)}`;
-                    updateStatus(errorMsg, 'error');
-                    logMessage(`✗ ${errorMsg}`, 'error');
-                    errorCount++;
-                    updateStats();
                 }
 
+                // ── RUNNING ──
+                if (status === 'running') {
+                    updateStatus('Processing running…', 'running');
+                    return 'running';
+                }
+
+                // ── FAILED / error ──
+                if (status === 'failed' || data.error || (body && body.error)) {
+                    const errMsg = data.error || (body && body.error) || 'Unknown error';
+                    updateStatus(`Error: ${errMsg}`, 'error');
+                    logMessage(`[#${requestCount}] ✗ Error: ${errMsg}`, 'error');
+                    errorCount++;
+                    updateStats();
+                    stopPolling();
+                    return 'failed';
+                }
+
+                // ── Unknown status ──
+                return 'running';
+
             } catch (error) {
+                if (isFirst) {
+                    // First request timeout expected (Lambda cold start > 29s API GW timeout)
+                    updateStatus('Request submitted – waiting for processing', 'running');
+                    logMessage(`[#${requestCount}] ⏳ First request timeout (expected on cold start) – will check in 60 s`, 'info');
+                    return 'timeout';
+                }
                 const errorMsg = `Network error: ${error.message}`;
                 updateStatus(errorMsg, 'error');
-                logMessage(`✗ ${errorMsg}`, 'error');
+                logMessage(`[#${requestCount}] ✗ ${errorMsg}`, 'error');
                 errorCount++;
                 updateStats();
                 console.error('Error:', error);
+                return 'error';
             }
         }
 
-        function startPolling() {
+        async function startPolling() {
             if (pollingTimer) {
                 logMessage('Polling already running', 'info');
                 return;
@@ -1450,29 +1469,34 @@
             document.getElementById('startBtn').disabled = true;
             document.getElementById('stopBtn').disabled = false;
 
-            // First request immediately
-            makeRequest();
-            startCountdown(60);
-
-            // Schedule: 60 s after first, then every 30 s, max 5 min
-            schedulePoll();
-
-            updateStatus('Request submitted – checking in 60 s', 'running');
             logMessage('🚀 Polling started (first check in 60 s, then every 30 s, max 5 min)', 'success');
+
+            // First request immediately – check result
+            const result = await makeRequest();
+            if (result === 'success' || result === 'failed') {
+                return; // Done – stopPolling was already called inside makeRequest
+            }
+
+            // Schedule subsequent polls: 60 s after first, then every 30 s
+            startCountdown(60);
+            schedulePoll();
         }
 
         function schedulePoll() {
             // First gap 60 s, subsequent gaps 30 s
             const delay = requestCount <= 1 ? 60000 : 30000;
 
-            pollingTimer = setTimeout(() => {
+            pollingTimer = setTimeout(async () => {
                 const elapsed = (Date.now() - pollingStartTime) / 1000;
                 if (elapsed >= 300) {
                     logMessage('⚠️ 5 min timeout reached – stopping polling', 'info');
                     stopPolling();
                     return;
                 }
-                makeRequest();
+                const result = await makeRequest();
+                if (result === 'success' || result === 'failed') {
+                    return; // Done – stopPolling was already called inside makeRequest
+                }
                 startCountdown(30);
                 schedulePoll();
             }, delay);
