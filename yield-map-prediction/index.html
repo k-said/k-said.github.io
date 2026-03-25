@@ -629,10 +629,9 @@
 <body>
     <div class="confidential-banner">⚠ Internal use only — Do not share outside Syngenta ⚠</div>
     <div class="header">
-        <h1>🌾 Yield Map Prediction (Prototype)</h1>
+        <h1>🌾 Yield Map Prediction (Webapp for live testing)</h1>
         <div style="text-align: center; padding: 10px; background-color: #aaeb8b; border-top: 1px solid #ccc;">
             <p style="margin: 5px 0;">
-                <strong>Contact:</strong> Said Kharbouche |
                 <strong>For more info:</strong> <a
                     href="https://digitial-product-engineering.atlassian.net/wiki/spaces/DSASH/pages/5172199698/In-Season+Yield+Map+Prediction"
                     target="_blank">Confluence Documentation</a>
@@ -956,7 +955,7 @@
                     </div>
                     <div class="stat-box">
                         <div class="stat-value" id="avgYield">-</div>
-                        <div class="stat-label">Avg Yield</div>
+                        <div class="stat-label" id="avgYieldLabel">Avg Yield</div>
                     </div>
                     <div class="stat-box">
                         <div class="stat-value" id="polygonCount">0</div>
@@ -1587,6 +1586,8 @@
             const maxYield = Math.max(...yields);
 
             document.getElementById('avgYield').textContent = avgYield.toFixed(2);
+            document.getElementById('avgYieldLabel').textContent =
+                'Avg ' + target.replace(/_avr_smoothed$/, '').replace(/_/g, ' ') + ' (' + unitLabel + ')';
             document.getElementById('polygonCount').textContent = yields.length;
 
             updateLegend(minYield, maxYield, yields, avgYield, stdDev, isRelative, pRef, topPct);
@@ -1629,10 +1630,12 @@
             if (!info) return;
             document.getElementById('infoPanel').style.display = 'block';
 
-            // Build rows for every key in info
+            // Build rows for every key in info (exclude NDVI time-series arrays)
+            const ndviKeys = new Set(['ndvi_time_sries_mean', 'ndvi_time_sries_std', 'ndvi_time_series_dates']);
             const rows = [];
             const arrayKeys = [];
             for (const [k, v] of Object.entries(info)) {
+                if (ndviKeys.has(k)) continue;
                 if (Array.isArray(v)) {
                     arrayKeys.push(k);
                     rows.push([k, `[${v.length} items]`]);
@@ -1675,11 +1678,12 @@
             );
             const means = info.ndvi_time_sries_mean;
             const stds = info.ndvi_time_sries_std || [];
-            const upper = means.map((m, i) => m + (stds[i] || 0));
-            const lower = means.map((m, i) => m - (stds[i] || 0));
+            const clamp01 = v => Math.max(0, Math.min(1, v));
+            const upper = means.map((m, i) => clamp01(m + (stds[i] || 0)));
+            const lower = means.map((m, i) => clamp01(m - (stds[i] || 0)));
 
             // Build {x, y} data points for a time scale
-            const meanData = dateStrings.map((d, i) => ({ x: d, y: means[i] }));
+            const meanData = dateStrings.map((d, i) => ({ x: d, y: clamp01(means[i]) }));
             const upperData = dateStrings.map((d, i) => ({ x: d, y: upper[i] }));
             const lowerData = dateStrings.map((d, i) => ({ x: d, y: lower[i] }));
 
