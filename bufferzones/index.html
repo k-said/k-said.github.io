@@ -7,9 +7,6 @@
     <title>Buffer Zone Tool – Syngenta</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
         :root {
             --primary: #37447b;
@@ -898,6 +895,127 @@
             border-top: 1px solid var(--border);
             margin: 16px 0;
         }
+
+        /* ── Layer Toggle Checkboxes ────────────── */
+        .layer-toggles {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 10px;
+            padding: 10px 12px;
+            background: #f9fafb;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+
+        .layer-toggles h5 {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: var(--text-light);
+            margin-bottom: 2px;
+            letter-spacing: 0.5px;
+        }
+
+        .layer-toggle-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+        }
+
+        .layer-toggle-item input[type="checkbox"] {
+            accent-color: var(--primary);
+            width: 15px;
+            height: 15px;
+            cursor: pointer;
+        }
+
+        .layer-toggle-item label {
+            cursor: pointer;
+            font-weight: 500;
+            text-transform: none;
+            letter-spacing: 0;
+            color: var(--text);
+            margin-bottom: 0;
+        }
+
+        .layer-toggle-item .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        /* ── OSM Endpoint Info ──────────────────── */
+        .osm-endpoint-info {
+            margin-top: 8px;
+            padding: 8px 10px;
+            background: #e8f5e9;
+            border: 1px solid #a5d6a7;
+            border-radius: 6px;
+            font-size: 11px;
+            line-height: 1.6;
+        }
+
+        .osm-endpoint-info .ep-title {
+            font-weight: 600;
+            color: #2e7d32;
+            margin-bottom: 4px;
+        }
+
+        .osm-endpoint-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 500;
+            margin: 2px 2px;
+            background: #c8e6c9;
+            color: #1b5e20;
+            word-break: break-all;
+        }
+
+        .osm-endpoint-badge.used {
+            background: #1b5e20;
+            color: white;
+            font-weight: 600;
+        }
+
+        .osm-endpoint-badge.unused {
+            background: #e0e0e0;
+            color: #757575;
+        }
+
+        /* ── Retry Banner ──────────────────────── */
+        .retry-banner {
+            margin-top: 8px;
+            padding: 10px 12px;
+            background: #fff3e0;
+            border: 1px solid #ffcc02;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #e65100;
+            line-height: 1.5;
+        }
+
+        .retry-banner strong {
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .retry-countdown {
+            font-weight: 700;
+            font-size: 14px;
+            color: var(--danger);
+        }
+
+        /* ── Download row ──────────────────────── */
+        .download-row {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
     </style>
 </head>
 
@@ -912,6 +1030,17 @@
             d.innerHTML = '<b>JS Error:</b> ' + msg + ' (line ' + line + ')';
             document.body.appendChild(d);
         };
+        // Check if critical libraries loaded
+        window.addEventListener('DOMContentLoaded', function () {
+            if (typeof L === 'undefined') {
+                document.body.innerHTML =
+                    '<div style="padding:40px;text-align:center;font-family:sans-serif;">' +
+                    '<h2 style="color:#c62828;">Failed to load Leaflet</h2>' +
+                    '<p>The page requires external libraries (Leaflet, PapaParse) that could not be loaded.</p>' +
+                    '<p>Please check your internet connection and try reloading (<b>Ctrl+Shift+R</b>).</p>' +
+                    '</div>';
+            }
+        });
     </script>
     <div class="app">
         <noscript>
@@ -1045,6 +1174,30 @@
                     </div>
                 </div>
 
+                <!-- ── Slope Data (optional) ── -->
+                <div class="step" id="step-slope">
+                    <div class="step-header" onclick="toggleStep('slope')">
+                        <span class="step-num">⛰</span>
+                        <span class="step-title">Slope Data (optional)</span>
+                        <span class="step-toggle">▸</span>
+                    </div>
+                    <div class="step-content">
+                        <p class="hint">By default, slope is auto-derived from the Copernicus DEM (25 m).
+                            Upload your own slope GeoJSON to override.</p>
+                        <div class="action-bar">
+                            <button class="btn btn-outline btn-sm"
+                                onclick="document.getElementById('slope-file-upload').click()">&#8593; Upload Slope
+                                GeoJSON</button>
+                            <input type="file" id="slope-file-upload" accept=".geojson,.json" style="display:none;"
+                                onchange="handleSlopeFileUpload(event)">
+                            <button class="btn btn-danger btn-sm" id="clear-slope-upload" style="display:none;"
+                                onclick="clearSlopeUpload()">&#10005; Clear</button>
+                        </div>
+                        <div id="slope-upload-info" class="results-box info" style="display:none; margin-top:6px;">
+                        </div>
+                    </div>
+                </div>
+
                 <!-- ── Step 3: Products & Rules ── -->
                 <div class="step" id="step-3">
                     <div class="step-header" onclick="toggleStep(3)">
@@ -1137,8 +1290,37 @@
                             Calculate Buffer Zones
                         </button>
                         <div id="loading">⏳ Processing… this may take a moment</div>
+                        <div id="retry-banner" class="retry-banner" style="display:none;"></div>
                         <div id="results" class="results-box" style="display:none;"></div>
-                        <div style="margin-top:8px; display:flex; gap:6px;">
+
+                        <!-- OSM Endpoint Info -->
+                        <div id="osm-endpoint-info" class="osm-endpoint-info" style="display:none;">
+                            <div class="ep-title">OSM Endpoints</div>
+                            <div id="osm-endpoint-list"></div>
+                        </div>
+
+                        <!-- Layer Visibility Toggles -->
+                        <div id="layer-toggles" class="layer-toggles" style="display:none;">
+                            <h5>Layer Visibility</h5>
+                            <div class="layer-toggle-item">
+                                <input type="checkbox" id="toggle-bz" checked onchange="toggleResultLayer('bz')">
+                                <span class="dot" style="background:#00c853"></span>
+                                <label for="toggle-bz">Buffer Zones</label>
+                            </div>
+                            <div class="layer-toggle-item">
+                                <input type="checkbox" id="toggle-va" checked onchange="toggleResultLayer('va')">
+                                <span class="dot" style="background:#1565c0"></span>
+                                <label for="toggle-va">Vulnerable Areas</label>
+                            </div>
+                            <div class="layer-toggle-item">
+                                <input type="checkbox" id="toggle-slope" checked onchange="toggleResultLayer('slope')">
+                                <span class="dot" style="background:#ff6d00"></span>
+                                <label for="toggle-slope">Slope</label>
+                            </div>
+                        </div>
+
+                        <!-- Download & Edit Buttons -->
+                        <div class="download-row">
                             <button class="btn btn-accent btn-sm" id="download-bz" style="display:none;"
                                 onclick="downloadGeoJSON(resultBufferzones, 'buffer_zones.geojson')">
                                 ↓ Buffer Zones
@@ -1147,7 +1329,17 @@
                                 onclick="downloadGeoJSON(resultVareas, 'vulnerable_areas.geojson')">
                                 ↓ Vulnerable Areas
                             </button>
-                            <button class="btn btn-outline btn-sm" id="edit-vareas-btn" style="display:none;"
+                            <button class="btn btn-outline btn-sm" id="download-slope" style="display:none;"
+                                onclick="downloadGeoJSON(resultSlopes, 'slope.geojson')">
+                                ↓ Slope
+                            </button>
+                            <button class="btn btn-outline btn-sm" id="download-field" style="display:none;"
+                                onclick="downloadGeoJSON(geojsonField, 'field_boundary.geojson')">
+                                ↓ Field Boundary
+                            </button>
+                        </div>
+                        <div class="download-row">
+                            <button class="btn btn-primary btn-sm" id="edit-vareas-btn" style="display:none;"
                                 onclick="loadResultVareasForEditing()">
                                 ✎ Edit Vuln. Areas &amp; Re-submit
                             </button>
@@ -1170,9 +1362,11 @@
                 <button class="help-close" onclick="toggleHelp()">&times;</button>
                 <h2>Buffer Zone Tool</h2>
 
-                <div style="background:var(--bg-light);border-left:4px solid var(--accent);padding:12px 16px;border-radius:6px;margin-bottom:16px;">
+                <div
+                    style="background:var(--bg-light);border-left:4px solid var(--accent);padding:12px 16px;border-radius:6px;margin-bottom:16px;">
                     <h3 style="margin:0 0 8px 0;font-size:15px;">What is this tool?</h3>
-                    <p style="margin:0 0 8px 0;">The <strong>Buffer Zone Tool</strong> computes pesticide <strong>buffer zones</strong>
+                    <p style="margin:0 0 8px 0;">The <strong>Buffer Zone Tool</strong> computes pesticide <strong>buffer
+                            zones</strong>
                         around agricultural fields. Buffer zones are setback distances that must be maintained between a
                         treated field and nearby <strong>vulnerable areas</strong> (waterbodies, forests, residential
                         areas, etc.) based on product-specific regulations.</p>
@@ -1180,9 +1374,11 @@
                     <ul style="margin:0;">
                         <li><strong>Field boundary</strong> &mdash; the polygon of the field to be treated</li>
                         <li><strong>Vulnerable areas</strong> &mdash; nearby sensitive features (auto-detected from
-                            <strong>OpenStreetMap</strong> by default, or uploaded / drawn manually)</li>
+                            <strong>OpenStreetMap</strong> by default, or uploaded / drawn manually)
+                        </li>
                         <li><strong>Slope data</strong> &mdash; terrain slope around the field (auto-derived from
-                            <strong>Copernicus DEM 25&thinsp;m</strong> by default, or uploaded as GeoJSON)</li>
+                            <strong>Copernicus DEM 25&thinsp;m</strong> by default, or uploaded as GeoJSON)
+                        </li>
                     </ul>
                     <p style="margin:8px 0 0 0;">These inputs are combined with <strong>product-specific rules</strong>
                         (drift reduction requirements, buffer distances) to produce the final buffer zone geometries and
@@ -1212,8 +1408,10 @@
                     <li><strong>Auto-detect (OSM)</strong> &mdash; The API queries OpenStreetMap for waterbodies,
                         forests, etc. No action needed.</li>
                     <li><strong>Upload GeoJSON</strong> &mdash; In the OSM panel, use the <em>"Upload Vulnerable Areas
-                        GeoJSON"</em> file picker to supply your own vulnerable areas. This <strong>overrides</strong>
-                        the auto-detection from OSM.</li>
+                            GeoJSON"</em> file picker to supply your own vulnerable areas. This
+                        <strong>overrides</strong>
+                        the auto-detection from OSM.
+                    </li>
                     <li><strong>Custom (Draw/Upload)</strong> &mdash; Switch to the Custom tab to draw polygons on the
                         map or upload a GeoJSON. Select the type for each area (Aquatic, Terrestrial, etc.).</li>
                 </ul>
@@ -1294,7 +1492,12 @@
 
         <!-- ═══ Map Area ═══ -->
         <main class="map-area">
-            <div id="map"></div>
+            <div id="map">
+                <div id="map-loading"
+                    style="display:flex;align-items:center;justify-content:center;height:100%;color:#6b7280;font-size:15px;">
+                    Loading map&hellip; If this persists, check your internet connection.
+                </div>
+            </div>
             <div class="mode-bar" id="mode-bar">
                 Drawing vulnerable area…
                 <span class="cancel-link" onclick="cancelVareaDraw()">Cancel</span>
@@ -1305,7 +1508,32 @@
     <!-- ═══════════════════════════════════════════════ -->
     <!-- ═══ JAVASCRIPT ═══════════════════════════════= -->
     <!-- ═══════════════════════════════════════════════ -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        onerror="document.getElementById('map').innerHTML='<p style=padding:40px;color:red;font-size:16px>Failed to load Leaflet. Check your internet connection or firewall settings.</p>'"></script>
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"
+        onerror="console.error('Failed to load Leaflet Draw')"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"
+        onerror="console.error('Failed to load PapaParse')"></script>
     <script>
+        /* ── Library availability check ─────────── */
+        if (typeof L === 'undefined') {
+            document.getElementById('map').innerHTML =
+                '<div style="padding:40px;text-align:center;color:#c62828;font-size:16px;">' +
+                '<h2>Failed to load required libraries</h2>' +
+                '<p>Leaflet could not be loaded. This is usually caused by:</p>' +
+                '<ul style="text-align:left;max-width:400px;margin:12px auto;">' +
+                '<li>No internet connection</li>' +
+                '<li>Corporate firewall blocking CDN domains (unpkg.com, cdnjs.cloudflare.com)</li>' +
+                '<li>Ad-blocker or browser extension interference</li>' +
+                '</ul>' +
+                '<p>Please check your network and try again.</p></div>';
+            throw new Error('Leaflet (L) is not available – cannot initialize the app.');
+        }
+
+        // Remove the loading placeholder
+        var mapLoadingEl = document.getElementById('map-loading');
+        if (mapLoadingEl) mapLoadingEl.remove();
+
         /* ──────────────────────────────────────────────────
            1. DEFAULT DATA
            ────────────────────────────────────────────────── */
@@ -1628,7 +1856,14 @@ AMISTAR TOP,APP,,,,50,50
                 "slope-max-attr": "slope-max[%]",
                 "slope-dist-attr": "slope-dist[m]",
                 "buffer-dist-attr": "buffer-dist[m]",
-                "drift-attr": "drift-reduction[%]"
+                "drift-attr": "drift-reduction[%]",
+                'osm-endpoints': [
+                    "https://overpass-api.de/api/interpreter",
+                    "https://overpass.kumi.systems/api/interpreter",
+                    "https://overpass.openstreetmap.fr/api/interpreter",
+                    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+                    "https://overpass.openstreetmap.ru/api/interpreter"],
+                'osm-timeout': 30,
             };
         }
 
@@ -1720,8 +1955,6 @@ AMISTAR TOP,APP,,,,50,50
 
         var map = null;
         var osmTiles = null;
-        var googleSat = null;
-        var googleStreets = null;
         var baseLayers = {};
         var overlayLayers = {};
         var layerControl = null;
@@ -1740,20 +1973,20 @@ AMISTAR TOP,APP,,,,50,50
 
             // Base layers
             osmTiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; OpenStreetMap'
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             });
-            googleSat = L.tileLayer('http://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', {
-                maxZoom: 20, subdomains: ['mt0', 'mt1', 'mt2', 'mt3'], attribution: '&copy; Google'
+            var esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 19, attribution: '&copy; Esri, Maxar, Earthstar Geographics'
             });
-            googleStreets = L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
-                maxZoom: 20, subdomains: ['mt0', 'mt1', 'mt2', 'mt3'], attribution: '&copy; Google'
+            var cartoStreets = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                maxZoom: 20, subdomains: 'abcd', attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
             });
             osmTiles.addTo(map);
 
             baseLayers = {
                 "OpenStreetMap": osmTiles,
-                "Google Satellite": googleSat,
-                "Google Streets": googleStreets
+                "Satellite (Esri)": esriSat,
+                "Streets (CARTO)": cartoStreets
             };
             layerControl = L.control.layers(baseLayers, overlayLayers, { collapsed: false }).addTo(map);
 
@@ -2376,6 +2609,33 @@ AMISTAR TOP,APP,,,,50,50
            10. API SUBMISSION
            ────────────────────────────────────────────────── */
 
+        // Retry state
+        let retryTimerId = null;
+        let retryCountdownId = null;
+
+        function clearRetryState() {
+            if (retryTimerId) { clearTimeout(retryTimerId); retryTimerId = null; }
+            if (retryCountdownId) { clearInterval(retryCountdownId); retryCountdownId = null; }
+            document.getElementById('retry-banner').style.display = 'none';
+        }
+
+        function showRetryBanner(attempt, maxAttempts, nextRetrySec) {
+            const banner = document.getElementById('retry-banner');
+            banner.style.display = 'block';
+            let remaining = nextRetrySec;
+            banner.innerHTML =
+                '<strong>⚠ Request failed (attempt ' + attempt + '/' + maxAttempts + ')</strong>' +
+                'The delay is mainly due to instability of OSM (OpenStreetMap) requests. ' +
+                'Retrying automatically in <span class="retry-countdown">' + remaining + 's</span>…';
+            if (retryCountdownId) clearInterval(retryCountdownId);
+            retryCountdownId = setInterval(function () {
+                remaining--;
+                var cd = banner.querySelector('.retry-countdown');
+                if (cd) cd.textContent = Math.max(remaining, 0) + 's';
+                if (remaining <= 0) clearInterval(retryCountdownId);
+            }, 1000);
+        }
+
         function submitToApi() {
             // Validation
             if (!geojsonField || !geojsonField.features || geojsonField.features.length === 0) {
@@ -2405,7 +2665,6 @@ AMISTAR TOP,APP,,,,50,50
                 vareas = uploadedVareas;
             } else if (vareaSource === 'custom') {
                 vareas = buildVareasGeoJSON();
-                // vareas can still be null if user drew nothing — API will use OSM
             }
 
             // Determine slope
@@ -2425,10 +2684,19 @@ AMISTAR TOP,APP,,,,50,50
             document.getElementById('submit-btn').disabled = true;
             document.getElementById('download-bz').style.display = 'none';
             document.getElementById('download-va').style.display = 'none';
+            document.getElementById('download-slope').style.display = 'none';
+            document.getElementById('download-field').style.display = 'none';
             document.getElementById('edit-vareas-btn').style.display = 'none';
+            document.getElementById('layer-toggles').style.display = 'none';
+            document.getElementById('osm-endpoint-info').style.display = 'none';
+            clearRetryState();
             showResult('', '');
 
-            function makeApiCall(retry) {
+            const MAX_ATTEMPTS = 10;   // 10 × 30s = 5 minutes max
+            const RETRY_DELAY = 30000; // 30 seconds
+            const startTime = Date.now();
+
+            function makeApiCall(attempt) {
                 fetch(API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -2436,16 +2704,12 @@ AMISTAR TOP,APP,,,,50,50
                 })
                     .then(response => {
                         if (!response.ok) {
-                            if (retry < 1) {
-                                showResult('API call failed. Retrying in 5 seconds…', 'error');
-                                setTimeout(() => makeApiCall(retry + 1), 5000);
-                                throw new Error('Retrying…');
-                            }
-                            throw new Error('API call failed after retry.');
+                            throw new Error('API returned status ' + response.status);
                         }
                         return response.json();
                     })
                     .then(data => {
+                        clearRetryState();
                         document.getElementById('loading').style.display = 'none';
                         document.getElementById('submit-btn').disabled = false;
 
@@ -2456,34 +2720,135 @@ AMISTAR TOP,APP,,,,50,50
 
                         showResult(resultMessage, resultBufferzones ? 'success' : 'info');
 
+                        // Show download buttons
                         if (resultBufferzones) {
                             document.getElementById('download-bz').style.display = 'inline-flex';
                         }
                         if (resultVareas && resultVareas.features && resultVareas.features.length > 0) {
                             document.getElementById('download-va').style.display = 'inline-flex';
-                            if (vareaSource === 'osm') {
-                                document.getElementById('edit-vareas-btn').style.display = 'inline-flex';
-                            }
+                            document.getElementById('edit-vareas-btn').style.display = 'inline-flex';
                         }
+                        if (resultSlopes && resultSlopes.features && resultSlopes.features.length > 0) {
+                            document.getElementById('download-slope').style.display = 'inline-flex';
+                        }
+                        // Always show field download after a successful run
+                        document.getElementById('download-field').style.display = 'inline-flex';
+
+                        // Show layer toggles
+                        document.getElementById('layer-toggles').style.display = 'block';
+                        document.getElementById('toggle-bz').checked = true;
+                        document.getElementById('toggle-va').checked = true;
+                        document.getElementById('toggle-slope').checked = true;
+
+                        // Show OSM endpoint info if applicable
+                        displayOsmEndpoints(data, paramsJson);
 
                         // Render results on map
                         renderResults(paramsJson);
                     })
                     .catch(err => {
-                        if (err.message !== 'Retrying…') {
+                        const elapsed = Date.now() - startTime;
+                        const withinTimeLimit = elapsed < 5 * 60 * 1000; // 5 minutes
+
+                        if (attempt < MAX_ATTEMPTS && withinTimeLimit) {
+                            showResult('Request failed: ' + err.message + '. Retrying…', 'error');
+                            showRetryBanner(attempt, MAX_ATTEMPTS, Math.round(RETRY_DELAY / 1000));
+                            retryTimerId = setTimeout(function () { makeApiCall(attempt + 1); }, RETRY_DELAY);
+                        } else {
+                            clearRetryState();
                             document.getElementById('loading').style.display = 'none';
                             document.getElementById('submit-btn').disabled = false;
-                            showResult('Error: ' + err.message, 'error');
+                            showResult(
+                                'Request failed after ' + attempt + ' attempt(s) over ' +
+                                Math.round(elapsed / 1000) + ' seconds.\n' +
+                                'Error: ' + err.message + '\n\n' +
+                                'The delay is mainly due to instability of OSM (OpenStreetMap) requests. ' +
+                                'Please try again later or upload your own vulnerable areas to bypass OSM.',
+                                'error'
+                            );
                         }
                     });
             }
 
-            makeApiCall(0);
+            makeApiCall(1);
+        }
+
+        /* ──────────────────────────────────────────────────
+           10b. OSM ENDPOINT DISPLAY
+           ────────────────────────────────────────────────── */
+
+        function displayOsmEndpoints(data, paramsJson) {
+            const container = document.getElementById('osm-endpoint-info');
+            const listEl = document.getElementById('osm-endpoint-list');
+
+            // Only show if OSM was used (no uploaded vareas and source is osm)
+            if (uploadedVareas || vareaSource === 'custom') {
+                container.style.display = 'none';
+                return;
+            }
+
+            const allEndpoints = (paramsJson['osm-endpoints'] || []);
+            // Check response for endpoint info
+            const usedEndpoint = data['osm-endpoint'] || data['osm_endpoint'] || null;
+            const usedEndpoints = data['osm-endpoints-used'] || data['osm_endpoints_used'] || (usedEndpoint ? [usedEndpoint] : []);
+
+            if (allEndpoints.length === 0) {
+                container.style.display = 'none';
+                return;
+            }
+
+            container.style.display = 'block';
+            let html = '';
+            allEndpoints.forEach(function (ep) {
+                // Extract domain for cleaner display
+                let domain = ep;
+                try { domain = new URL(ep).hostname; } catch (e) { }
+                const isUsed = usedEndpoints.some(function (u) { return ep.indexOf(u) !== -1 || u.indexOf(ep) !== -1; }) ||
+                    (usedEndpoint && ep.indexOf(usedEndpoint) !== -1);
+                if (isUsed) {
+                    html += '<span class="osm-endpoint-badge used" title="' + ep + '">✓ ' + domain + '</span> ';
+                } else {
+                    html += '<span class="osm-endpoint-badge unused" title="' + ep + '">' + domain + '</span> ';
+                }
+            });
+
+            // If no specific endpoint info in response, mark all as "available" and note
+            if (usedEndpoints.length === 0 && !usedEndpoint) {
+                html = '';
+                allEndpoints.forEach(function (ep) {
+                    let domain = ep;
+                    try { domain = new URL(ep).hostname; } catch (e) { }
+                    html += '<span class="osm-endpoint-badge" title="' + ep + '">' + domain + '</span> ';
+                });
+                html += '<br><span style="font-size:10px;color:#666;">OSM data was fetched via one of the above endpoints (round-robin / fallback).</span>';
+            }
+
+            listEl.innerHTML = html;
         }
 
         /* ──────────────────────────────────────────────────
            11. RENDER RESULTS ON MAP
            ────────────────────────────────────────────────── */
+
+        // Global references for layer toggle 
+        var resultBzGroup = null;
+        var resultVaGroup = null;
+        var resultSlopeGroup = null;
+
+        function toggleResultLayer(layerKey) {
+            var group = null;
+            if (layerKey === 'bz') group = resultBzGroup;
+            if (layerKey === 'va') group = resultVaGroup;
+            if (layerKey === 'slope') group = resultSlopeGroup;
+            if (!group) return;
+
+            var checkbox = document.getElementById('toggle-' + layerKey);
+            if (checkbox.checked) {
+                if (!map.hasLayer(group)) map.addLayer(group);
+            } else {
+                if (map.hasLayer(group)) map.removeLayer(group);
+            }
+        }
 
         function renderResults(paramsJson) {
             // Clear previous results
@@ -2516,10 +2881,10 @@ AMISTAR TOP,APP,,,,50,50
             const typeColors = {};
             uniqueTypes.forEach(t => typeColors[t] = getVareaColor(t) || spectralColor(uniqueTypes.indexOf(t), uniqueTypes.length));
 
-            // Layer groups
-            const bzGroup = L.layerGroup();
-            const vaGroup = L.layerGroup();
-            const slopeGroup = L.layerGroup();
+            // Layer groups (stored globally for toggle)
+            resultBzGroup = L.layerGroup();
+            resultVaGroup = L.layerGroup();
+            resultSlopeGroup = L.layerGroup();
 
             // Buffer zones layer
             let bzLayer = null;
@@ -2531,9 +2896,9 @@ AMISTAR TOP,APP,,,,50,50
                     },
                     onEachFeature: function (f, layer) {
                         const d = f.properties[driftAttr];
-                        layer.bindPopup(`Drift Reduction: ${d}%`);
-                        layer.bindTooltip(`Drift: ${d}%`, { sticky: true, direction: 'top' });
-                        bzGroup.addLayer(layer);
+                        layer.bindPopup('Drift Reduction: ' + d + '%');
+                        layer.bindTooltip('Drift: ' + d + '%', { sticky: true, direction: 'top' });
+                        resultBzGroup.addLayer(layer);
                     }
                 });
                 resultsLayer.addLayer(bzLayer);
@@ -2555,9 +2920,9 @@ AMISTAR TOP,APP,,,,50,50
                     },
                     onEachFeature: function (f, layer) {
                         const t = f.properties['varea-type'];
-                        layer.bindPopup(`Type: ${t}`);
+                        layer.bindPopup('Type: ' + t);
                         layer.bindTooltip(t, { sticky: true, direction: 'top' });
-                        vaGroup.addLayer(layer);
+                        resultVaGroup.addLayer(layer);
                     }
                 });
                 resultsLayer.addLayer(vaLayer);
@@ -2575,8 +2940,8 @@ AMISTAR TOP,APP,,,,50,50
                         });
                     },
                     onEachFeature: function (f, layer) {
-                        layer.bindTooltip(`Slope: ${f.properties.slope.toFixed(1)}%`, { sticky: true, direction: 'top' });
-                        slopeGroup.addLayer(layer);
+                        layer.bindTooltip('Slope: ' + f.properties.slope.toFixed(1) + '%', { sticky: true, direction: 'top' });
+                        resultSlopeGroup.addLayer(layer);
                     }
                 });
                 resultsLayer.addLayer(slopeLayer);
@@ -2589,13 +2954,13 @@ AMISTAR TOP,APP,,,,50,50
             resultsLayer.addLayer(fieldViz);
 
             // Add groups to map
-            bzGroup.addTo(map);
-            vaGroup.addTo(map);
-            if (resultSlopes) slopeGroup.addTo(map);
+            resultBzGroup.addTo(map);
+            resultVaGroup.addTo(map);
+            if (resultSlopes) resultSlopeGroup.addTo(map);
 
             // Layer control
-            const overlays = { "Buffer Zones": bzGroup, "Vulnerable Areas": vaGroup };
-            if (resultSlopes) overlays["Slopes"] = slopeGroup;
+            const overlays = { "Buffer Zones": resultBzGroup, "Vulnerable Areas": resultVaGroup };
+            if (resultSlopes) overlays["Slopes"] = resultSlopeGroup;
             layerControl = L.control.layers(baseLayers, overlays, { collapsed: false }).addTo(map);
 
             // Drift dropdown control
