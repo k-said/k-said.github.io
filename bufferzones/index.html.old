@@ -690,22 +690,20 @@
             display: flex;
             gap: 6px;
             margin-bottom: 12px;
-            flex-wrap: wrap;
         }
 
         .country-btn {
-            flex: 1 1 calc(20% - 6px);
-            min-width: 80px;
+            flex: 1;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 6px;
-            padding: 8px 6px;
+            padding: 10px 8px;
             border: 2px solid var(--border);
             border-radius: var(--radius);
             background: var(--card);
             cursor: pointer;
-            font-size: 12px;
+            font-size: 13px;
             font-weight: 600;
             transition: all 0.15s;
         }
@@ -1069,36 +1067,14 @@
                         Region / Country</div>
                     <div class="country-bar" id="country-bar">
                         <div class="country-btn active" onclick="setCountry('DE')" data-country="DE">
-                            <span class="flag">🇩🇪</span> Germany
-                        </div>
-                        <div class="country-btn" onclick="setCountry('FR')" data-country="FR">
-                            <span class="flag">🇫🇷</span> France
-                        </div>
-                        <div class="country-btn" onclick="setCountry('ES')" data-country="ES">
-                            <span class="flag">🇪🇸</span> Spain
-                        </div>
-                        <div class="country-btn" onclick="setCountry('UK')" data-country="UK">
-                            <span class="flag">🇬🇧</span> UK
+                            <span class="flag">DE</span> Germany
                         </div>
                         <div class="country-btn" onclick="setCountry('US')" data-country="US">
-                            <span class="flag">🇺🇸</span> United States
+                            <span class="flag">US</span> United States
                         </div>
                         <div class="country-btn" onclick="setCountry('BR')" data-country="BR">
-                            <span class="flag">🇧🇷</span> Brazil
+                            <span class="flag">BR</span> Brazil
                         </div>
-                        <div class="country-btn" onclick="setCountry('AR')" data-country="AR">
-                            <span class="flag">🇦🇷</span> Argentina
-                        </div>
-                        <div class="country-btn" onclick="setCountry('IN')" data-country="IN">
-                            <span class="flag">🇮🇳</span> India
-                        </div>
-                        <div class="country-btn" onclick="setCountry('AU')" data-country="AU">
-                            <span class="flag">🇦🇺</span> Australia
-                        </div>
-                    </div>
-                    <div id="auto-detect-info"
-                        style="display:none;font-size:11px;color:var(--accent);margin-top:-8px;margin-bottom:8px;">
-                        🌍 Country auto-detected from field boundary
                     </div>
                 </div>
 
@@ -1141,13 +1117,10 @@
                         </div>
 
                         <div id="osm-panel">
-                            <p class="hint">Vulnerable areas will be <strong>automatically fetched from
-                                    OpenStreetMap</strong> (client-side) when you click Calculate.
-                                After results return, you can <strong>edit them</strong> and re-submit.
+                            <p class="hint">Vulnerable areas will be automatically fetched from
+                                OpenStreetMap when you submit. After results return, you can
+                                <strong>edit them</strong> and re-submit.
                             </p>
-                            <div id="osm-prefetch-status"
-                                style="display:none;margin-bottom:8px;padding:8px 10px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;font-size:11px;color:#2e7d32;">
-                            </div>
                             <div style="margin-top:8px; padding-top:8px; border-top:1px solid var(--border);">
                                 <p class="hint" style="margin-bottom:6px;">Or upload your own vulnerable areas GeoJSON
                                     (overrides OSM):</p>
@@ -1588,19 +1561,16 @@
         const COUNTRY_CONFIG = {
             "DE": {
                 name: "Germany",
-                flag: "🇩🇪",
-                bbox: [5.87, 47.27, 15.04, 55.06],
+                flag: "DE",
                 vareaTypes: [
-                    { key: "Aquatic", label: "Aquatic - Waterbodies (Gewässer)", color: "#1565c0" },
+                    { key: "Aquatic", label: "Aquatic - Waterbodies (Gewaesser)", color: "#1565c0" },
                     { key: "Terrestrial", label: "Terrestrial - Non-target habitats (Saumbiotope)", color: "#2e7d32" },
-                    { key: "Grassland", label: "Grassland - Field margins (Saumstruktur)", color: "#f9a825" },
-                    { key: "Urban", label: "Urban - Residential & settlements (Siedlungen)", color: "#e65100" }
+                    { key: "Grassland", label: "Grassland - Field margins (Saumstruktur)", color: "#f9a825" }
                 ],
                 osmTags: {
                     "Aquatic": { "natural": ["water", "wetland"], "water": true, "waterway": true, "landuse": ["reservoir", "basin"] },
                     "Terrestrial": { "natural": ["wood", "scrub", "heath"], "landuse": ["forest"] },
-                    "Grassland": { "natural": ["grassland"], "landuse": ["meadow", "grass"] },
-                    "Urban": { "landuse": ["residential", "commercial", "retail"], "building": ["house", "apartments", "school", "hospital"] }
+                    "Grassland": { "natural": ["grassland"], "landuse": ["meadow", "grass"] }
                 },
                 rules: `cp-product,varea-type,slope-min[%],slope-max[%],slope-dist[m],buffer-dist[m],drift-reduction[%]
 AMISTAR,Aquatic,,,,20,90
@@ -1612,9 +1582,6 @@ AMISTAR,Aquatic,2,100,100,40,50
 AMISTAR,Terrestrial,,,,5,90
 AMISTAR,Terrestrial,,,,15,75
 AMISTAR,Terrestrial,,,,25,50
-AMISTAR,Urban,,,,10,90
-AMISTAR,Urban,,,,20,75
-AMISTAR,Urban,,,,30,50
 KARATE ZEON,Aquatic,,,,30,90
 KARATE ZEON,Aquatic,,,,50,75
 KARATE ZEON,Aquatic,,,,80,50
@@ -1624,18 +1591,12 @@ KARATE ZEON,Aquatic,2,100,100,60,50
 KARATE ZEON,Terrestrial,,,,20,90
 KARATE ZEON,Terrestrial,,,,40,75
 KARATE ZEON,Terrestrial,,,,60,50
-KARATE ZEON,Urban,,,,20,90
-KARATE ZEON,Urban,,,,30,75
-KARATE ZEON,Urban,,,,50,50
 CALLISTO,Aquatic,,,,10,90
 CALLISTO,Aquatic,,,,20,75
 CALLISTO,Aquatic,,,,40,50
 CALLISTO,Terrestrial,,,,5,90
 CALLISTO,Terrestrial,,,,10,75
 CALLISTO,Terrestrial,,,,20,50
-CALLISTO,Urban,,,,10,90
-CALLISTO,Urban,,,,15,75
-CALLISTO,Urban,,,,25,50
 ELATUS Era,Aquatic,,,,20,90
 ELATUS Era,Aquatic,,,,35,75
 ELATUS Era,Aquatic,,,,60,50
@@ -1645,18 +1606,12 @@ ELATUS Era,Aquatic,2,100,100,50,50
 ELATUS Era,Terrestrial,,,,10,90
 ELATUS Era,Terrestrial,,,,20,75
 ELATUS Era,Terrestrial,,,,35,50
-ELATUS Era,Urban,,,,15,90
-ELATUS Era,Urban,,,,25,75
-ELATUS Era,Urban,,,,40,50
 SCORE,Aquatic,,,,15,90
 SCORE,Aquatic,,,,25,75
 SCORE,Aquatic,,,,40,50
 SCORE,Terrestrial,,,,5,90
 SCORE,Terrestrial,,,,10,75
 SCORE,Terrestrial,,,,20,50
-SCORE,Urban,,,,10,90
-SCORE,Urban,,,,15,75
-SCORE,Urban,,,,25,50
 REVUS,Aquatic,,,,10,90
 REVUS,Aquatic,,,,20,75
 REVUS,Aquatic,,,,30,50
@@ -1684,18 +1639,12 @@ BRAVO 500,Aquatic,2,100,100,40,50
 BRAVO 500,Terrestrial,,,,10,90
 BRAVO 500,Terrestrial,,,,20,75
 BRAVO 500,Terrestrial,,,,30,50
-BRAVO 500,Urban,,,,15,90
-BRAVO 500,Urban,,,,25,75
-BRAVO 500,Urban,,,,40,50
 AMPLIGO,Aquatic,,,,30,90
 AMPLIGO,Aquatic,,,,50,75
 AMPLIGO,Aquatic,,,,80,50
 AMPLIGO,Terrestrial,,,,20,90
 AMPLIGO,Terrestrial,,,,40,75
 AMPLIGO,Terrestrial,,,,60,50
-AMPLIGO,Urban,,,,20,90
-AMPLIGO,Urban,,,,30,75
-AMPLIGO,Urban,,,,50,50
 MODDUS,Aquatic,,,,5,90
 MODDUS,Aquatic,,,,10,75
 MODDUS,Aquatic,,,,15,50
@@ -1714,185 +1663,18 @@ UNIFORM,Terrestrial,,,,25,50
 `
             },
 
-            "FR": {
-                name: "France",
-                flag: "🇫🇷",
-                bbox: [-5.14, 41.36, 9.56, 51.09],
-                vareaTypes: [
-                    { key: "Aquatic", label: "Aquatique - Plans d'eau & cours d'eau", color: "#1565c0" },
-                    { key: "Terrestrial", label: "Terrestre - Habitats non-cibles (haies, bois)", color: "#2e7d32" },
-                    { key: "Urban", label: "Urbain - Zones résidentielles", color: "#e65100" },
-                    { key: "ZNT", label: "ZNT - Zone Non Traitée", color: "#6a1b9a" }
-                ],
-                osmTags: {
-                    "Aquatic": { "natural": ["water", "wetland"], "water": true, "waterway": true, "landuse": ["reservoir", "basin"] },
-                    "Terrestrial": { "natural": ["wood", "scrub", "heath"], "landuse": ["forest"] },
-                    "Urban": { "landuse": ["residential", "commercial", "retail"], "building": ["house", "apartments", "school", "hospital"] },
-                    "ZNT": { "natural": ["water", "wetland"], "waterway": true, "landuse": ["residential"] }
-                },
-                rules: `cp-product,varea-type,slope-min[%],slope-max[%],slope-dist[m],buffer-dist[m],drift-reduction[%]
-AMISTAR,Aquatic,,,,20,90
-AMISTAR,Aquatic,,,,30,75
-AMISTAR,Aquatic,,,,50,50
-AMISTAR,Terrestrial,,,,5,90
-AMISTAR,Terrestrial,,,,15,75
-AMISTAR,Terrestrial,,,,25,50
-AMISTAR,Urban,,,,10,90
-AMISTAR,Urban,,,,20,75
-AMISTAR,Urban,,,,30,50
-KARATE ZEON,Aquatic,,,,30,90
-KARATE ZEON,Aquatic,,,,50,75
-KARATE ZEON,Aquatic,,,,80,50
-KARATE ZEON,Terrestrial,,,,20,90
-KARATE ZEON,Terrestrial,,,,40,75
-KARATE ZEON,Terrestrial,,,,60,50
-KARATE ZEON,Urban,,,,20,90
-KARATE ZEON,Urban,,,,30,75
-KARATE ZEON,Urban,,,,50,50
-ELATUS Era,Aquatic,,,,20,90
-ELATUS Era,Aquatic,,,,35,75
-ELATUS Era,Aquatic,,,,60,50
-ELATUS Era,Terrestrial,,,,10,90
-ELATUS Era,Terrestrial,,,,20,75
-ELATUS Era,Terrestrial,,,,35,50
-SCORE,Aquatic,,,,15,90
-SCORE,Aquatic,,,,25,75
-SCORE,Aquatic,,,,40,50
-SCORE,Terrestrial,,,,5,90
-SCORE,Terrestrial,,,,10,75
-SCORE,Terrestrial,,,,20,50
-REVUS,Aquatic,,,,10,90
-REVUS,Aquatic,,,,20,75
-REVUS,Aquatic,,,,30,50
-BRAVO 500,Aquatic,,,,20,90
-BRAVO 500,Aquatic,,,,30,75
-BRAVO 500,Aquatic,,,,50,50
-BRAVO 500,Urban,,,,15,90
-BRAVO 500,Urban,,,,25,75
-BRAVO 500,Urban,,,,40,50
-AMPLIGO,Aquatic,,,,30,90
-AMPLIGO,Aquatic,,,,50,75
-AMPLIGO,Aquatic,,,,80,50
-AMPLIGO,Urban,,,,20,90
-AMPLIGO,Urban,,,,30,75
-AMPLIGO,Urban,,,,50,50
-`
-            },
-
-            "ES": {
-                name: "Spain",
-                flag: "🇪🇸",
-                bbox: [-9.30, 36.00, 3.33, 43.79],
-                vareaTypes: [
-                    { key: "Aquatic", label: "Acuático - Masas de agua", color: "#1565c0" },
-                    { key: "Terrestrial", label: "Terrestre - Hábitats no objetivo", color: "#2e7d32" },
-                    { key: "Urban", label: "Urbano - Zonas residenciales", color: "#e65100" }
-                ],
-                osmTags: {
-                    "Aquatic": { "natural": ["water", "wetland"], "water": true, "waterway": true, "landuse": ["reservoir", "basin"] },
-                    "Terrestrial": { "natural": ["wood", "scrub", "heath"], "landuse": ["forest"] },
-                    "Urban": { "landuse": ["residential", "commercial", "retail"], "building": ["house", "apartments", "school", "hospital"] }
-                },
-                rules: `cp-product,varea-type,slope-min[%],slope-max[%],slope-dist[m],buffer-dist[m],drift-reduction[%]
-AMISTAR,Aquatic,,,,20,90
-AMISTAR,Aquatic,,,,30,75
-AMISTAR,Aquatic,,,,50,50
-AMISTAR,Terrestrial,,,,5,90
-AMISTAR,Terrestrial,,,,15,75
-AMISTAR,Terrestrial,,,,25,50
-AMISTAR,Urban,,,,10,90
-AMISTAR,Urban,,,,20,75
-AMISTAR,Urban,,,,30,50
-KARATE ZEON,Aquatic,,,,30,90
-KARATE ZEON,Aquatic,,,,50,75
-KARATE ZEON,Aquatic,,,,80,50
-KARATE ZEON,Terrestrial,,,,20,90
-KARATE ZEON,Terrestrial,,,,40,75
-KARATE ZEON,Terrestrial,,,,60,50
-KARATE ZEON,Urban,,,,20,90
-KARATE ZEON,Urban,,,,30,75
-KARATE ZEON,Urban,,,,50,50
-SCORE,Aquatic,,,,15,90
-SCORE,Aquatic,,,,25,75
-SCORE,Aquatic,,,,40,50
-SCORE,Terrestrial,,,,5,90
-SCORE,Terrestrial,,,,10,75
-SCORE,Terrestrial,,,,20,50
-REVUS,Aquatic,,,,10,90
-REVUS,Aquatic,,,,20,75
-REVUS,Aquatic,,,,30,50
-AMPLIGO,Aquatic,,,,30,90
-AMPLIGO,Aquatic,,,,50,75
-AMPLIGO,Aquatic,,,,80,50
-AMPLIGO,Urban,,,,20,90
-AMPLIGO,Urban,,,,30,75
-AMPLIGO,Urban,,,,50,50
-`
-            },
-
-            "UK": {
-                name: "United Kingdom",
-                flag: "🇬🇧",
-                bbox: [-8.17, 49.96, 1.75, 60.86],
-                vareaTypes: [
-                    { key: "Aquatic", label: "Aquatic - Waterbodies & watercourses", color: "#1565c0" },
-                    { key: "Terrestrial", label: "Terrestrial - Non-target habitats (hedgerows, woodland)", color: "#2e7d32" },
-                    { key: "Urban", label: "Urban - Residential & public areas", color: "#e65100" }
-                ],
-                osmTags: {
-                    "Aquatic": { "natural": ["water", "wetland"], "water": true, "waterway": true, "landuse": ["reservoir", "basin"] },
-                    "Terrestrial": { "natural": ["wood", "scrub", "heath"], "landuse": ["forest"] },
-                    "Urban": { "landuse": ["residential", "commercial", "retail"], "building": ["house", "apartments", "school", "hospital"] }
-                },
-                rules: `cp-product,varea-type,slope-min[%],slope-max[%],slope-dist[m],buffer-dist[m],drift-reduction[%]
-AMISTAR,Aquatic,,,,20,90
-AMISTAR,Aquatic,,,,30,75
-AMISTAR,Aquatic,,,,50,50
-AMISTAR,Terrestrial,,,,5,90
-AMISTAR,Terrestrial,,,,15,75
-AMISTAR,Terrestrial,,,,25,50
-AMISTAR,Urban,,,,10,90
-AMISTAR,Urban,,,,20,75
-AMISTAR,Urban,,,,30,50
-KARATE ZEON,Aquatic,,,,30,90
-KARATE ZEON,Aquatic,,,,50,75
-KARATE ZEON,Aquatic,,,,80,50
-KARATE ZEON,Terrestrial,,,,20,90
-KARATE ZEON,Terrestrial,,,,40,75
-KARATE ZEON,Terrestrial,,,,60,50
-SCORE,Aquatic,,,,15,90
-SCORE,Aquatic,,,,25,75
-SCORE,Aquatic,,,,40,50
-SCORE,Terrestrial,,,,5,90
-SCORE,Terrestrial,,,,10,75
-SCORE,Terrestrial,,,,20,50
-REVUS,Aquatic,,,,10,90
-REVUS,Aquatic,,,,20,75
-REVUS,Aquatic,,,,30,50
-BRAVO 500,Aquatic,,,,20,90
-BRAVO 500,Aquatic,,,,30,75
-BRAVO 500,Aquatic,,,,50,50
-BRAVO 500,Urban,,,,15,90
-BRAVO 500,Urban,,,,25,75
-BRAVO 500,Urban,,,,40,50
-`
-            },
-
             "US": {
                 name: "United States",
-                flag: "🇺🇸",
-                bbox: [-125.0, 24.4, -66.9, 49.4],
+                flag: "US",
                 vareaTypes: [
                     { key: "Aquatic", label: "Aquatic - Water bodies (streams, lakes, wetlands)", color: "#1565c0" },
                     { key: "Residential", label: "Residential - Homes, schools, playgrounds", color: "#e65100" },
-                    { key: "ESA Habitat", label: "ESA Habitat - Endangered species areas", color: "#6a1b9a" },
-                    { key: "Urban", label: "Urban - Urban & suburban areas", color: "#ff6f00" }
+                    { key: "ESA Habitat", label: "ESA Habitat - Endangered species areas", color: "#6a1b9a" }
                 ],
                 osmTags: {
                     "Aquatic": { "natural": ["water", "wetland"], "water": true, "waterway": true, "landuse": ["reservoir", "basin"] },
                     "Residential": { "landuse": ["residential"], "building": ["house", "apartments", "school"] },
-                    "ESA Habitat": { "natural": ["wood", "scrub", "wetland", "grassland"], "landuse": ["forest", "nature_reserve"], "boundary": ["protected_area", "national_park"] },
-                    "Urban": { "landuse": ["residential", "commercial", "retail", "industrial"], "building": ["house", "apartments", "school", "hospital"] }
+                    "ESA Habitat": { "natural": ["wood", "scrub", "wetland", "grassland"], "landuse": ["forest", "nature_reserve"], "boundary": ["protected_area", "national_park"] }
                 },
                 rules: `cp-product,varea-type,slope-min[%],slope-max[%],slope-dist[m],buffer-dist[m],drift-reduction[%]
 TRIVAPRO,Aquatic,,,,10,90
@@ -1901,9 +1683,6 @@ TRIVAPRO,Aquatic,,,,30,50
 TRIVAPRO,ESA Habitat,,,,15,90
 TRIVAPRO,ESA Habitat,,,,25,75
 TRIVAPRO,ESA Habitat,,,,40,50
-TRIVAPRO,Urban,,,,10,90
-TRIVAPRO,Urban,,,,15,75
-TRIVAPRO,Urban,,,,25,50
 MIRAVIS NEO,Aquatic,,,,10,90
 MIRAVIS NEO,Aquatic,,,,15,75
 MIRAVIS NEO,Aquatic,,,,25,50
@@ -1919,9 +1698,6 @@ ACURON,Residential,,,,20,50
 ACURON,ESA Habitat,,,,20,90
 ACURON,ESA Habitat,,,,30,75
 ACURON,ESA Habitat,,,,50,50
-ACURON,Urban,,,,10,90
-ACURON,Urban,,,,15,75
-ACURON,Urban,,,,25,50
 HALEX GT,Aquatic,,,,15,90
 HALEX GT,Aquatic,,,,25,75
 HALEX GT,Aquatic,,,,40,50
@@ -1961,29 +1737,23 @@ MINECTO PRO,Residential,,,,25,50
 MINECTO PRO,ESA Habitat,,,,25,90
 MINECTO PRO,ESA Habitat,,,,40,75
 MINECTO PRO,ESA Habitat,,,,60,50
-MINECTO PRO,Urban,,,,10,90
-MINECTO PRO,Urban,,,,20,75
-MINECTO PRO,Urban,,,,30,50
 `
             },
 
             "BR": {
                 name: "Brazil",
-                flag: "🇧🇷",
-                bbox: [-73.98, -33.75, -34.79, 5.27],
+                flag: "BR",
                 vareaTypes: [
-                    { key: "Aquatic", label: "Aquatic - Corpos d'água", color: "#1565c0" },
-                    { key: "APP", label: "APP - Área de Preservação Permanente", color: "#2e7d32" },
-                    { key: "Riparian", label: "Riparian - Mata ciliar", color: "#00695c" },
-                    { key: "Indigenous", label: "Indigenous - Terra indígena", color: "#6a1b9a" },
-                    { key: "Urban", label: "Urbano - Zonas residenciais", color: "#e65100" }
+                    { key: "Aquatic", label: "Aquatic - Water bodies (Corpos d agua)", color: "#1565c0" },
+                    { key: "APP", label: "APP - Permanent preservation area (Area de Preservacao)", color: "#2e7d32" },
+                    { key: "Riparian", label: "Riparian - Riparian forest (Mata ciliar)", color: "#00695c" },
+                    { key: "Indigenous", label: "Indigenous - Indigenous land (Terra indigena)", color: "#6a1b9a" }
                 ],
                 osmTags: {
                     "Aquatic": { "natural": ["water", "wetland"], "water": true, "waterway": true, "landuse": ["reservoir", "basin"] },
                     "APP": { "natural": ["wood", "scrub"], "landuse": ["forest"], "boundary": ["protected_area"] },
                     "Riparian": { "natural": ["wood", "wetland"], "waterway": true },
-                    "Indigenous": { "boundary": ["aboriginal_lands", "protected_area"] },
-                    "Urban": { "landuse": ["residential", "commercial", "retail"], "building": ["house", "apartments", "school", "hospital"] }
+                    "Indigenous": { "boundary": ["aboriginal_lands", "protected_area"] }
                 },
                 rules: `cp-product,varea-type,slope-min[%],slope-max[%],slope-dist[m],buffer-dist[m],drift-reduction[%]
 ACTARA 250 WG,Aquatic,,,,20,90
@@ -1992,9 +1762,6 @@ ACTARA 250 WG,Aquatic,,,,50,50
 ACTARA 250 WG,APP,,,,30,90
 ACTARA 250 WG,APP,,,,50,75
 ACTARA 250 WG,APP,,,,80,50
-ACTARA 250 WG,Urban,,,,15,90
-ACTARA 250 WG,Urban,,,,25,75
-ACTARA 250 WG,Urban,,,,40,50
 ENGEO PLENO S,Aquatic,,,,30,90
 ENGEO PLENO S,Aquatic,,,,50,75
 ENGEO PLENO S,Aquatic,,,,80,50
@@ -2004,9 +1771,6 @@ ENGEO PLENO S,APP,,,,100,50
 ENGEO PLENO S,Riparian,,,,30,90
 ENGEO PLENO S,Riparian,,,,50,75
 ENGEO PLENO S,Riparian,,,,80,50
-ENGEO PLENO S,Urban,,,,25,90
-ENGEO PLENO S,Urban,,,,40,75
-ENGEO PLENO S,Urban,,,,60,50
 PRIORI XTRA,Aquatic,,,,20,90
 PRIORI XTRA,Aquatic,,,,30,75
 PRIORI XTRA,Aquatic,,,,50,50
@@ -2055,149 +1819,6 @@ AMISTAR TOP,Aquatic,,,,40,50
 AMISTAR TOP,APP,,,,20,90
 AMISTAR TOP,APP,,,,30,75
 AMISTAR TOP,APP,,,,50,50
-`
-            },
-
-            "AR": {
-                name: "Argentina",
-                flag: "🇦🇷",
-                bbox: [-73.56, -55.06, -53.64, -21.78],
-                vareaTypes: [
-                    { key: "Aquatic", label: "Acuático - Cuerpos de agua", color: "#1565c0" },
-                    { key: "Terrestrial", label: "Terrestre - Bosques y montes nativos", color: "#2e7d32" },
-                    { key: "Urban", label: "Urbano - Zonas residenciales", color: "#e65100" },
-                    { key: "Periurbano", label: "Periurbano - Zona de amortiguamiento", color: "#6a1b9a" }
-                ],
-                osmTags: {
-                    "Aquatic": { "natural": ["water", "wetland"], "water": true, "waterway": true, "landuse": ["reservoir", "basin"] },
-                    "Terrestrial": { "natural": ["wood", "scrub"], "landuse": ["forest"] },
-                    "Urban": { "landuse": ["residential", "commercial", "retail"], "building": ["house", "apartments", "school", "hospital"] },
-                    "Periurbano": { "landuse": ["residential", "farmyard"], "place": ["village", "hamlet"] }
-                },
-                rules: `cp-product,varea-type,slope-min[%],slope-max[%],slope-dist[m],buffer-dist[m],drift-reduction[%]
-ACTARA 250 WG,Aquatic,,,,20,90
-ACTARA 250 WG,Aquatic,,,,30,75
-ACTARA 250 WG,Aquatic,,,,50,50
-ACTARA 250 WG,Urban,,,,15,90
-ACTARA 250 WG,Urban,,,,25,75
-ACTARA 250 WG,Urban,,,,40,50
-ENGEO PLENO S,Aquatic,,,,30,90
-ENGEO PLENO S,Aquatic,,,,50,75
-ENGEO PLENO S,Aquatic,,,,80,50
-ENGEO PLENO S,Urban,,,,25,90
-ENGEO PLENO S,Urban,,,,40,75
-ENGEO PLENO S,Urban,,,,60,50
-SCORE,Aquatic,,,,15,90
-SCORE,Aquatic,,,,25,75
-SCORE,Aquatic,,,,40,50
-SCORE,Terrestrial,,,,5,90
-SCORE,Terrestrial,,,,10,75
-SCORE,Terrestrial,,,,20,50
-AMISTAR TOP,Aquatic,,,,15,90
-AMISTAR TOP,Aquatic,,,,25,75
-AMISTAR TOP,Aquatic,,,,40,50
-AMISTAR TOP,Terrestrial,,,,10,90
-AMISTAR TOP,Terrestrial,,,,20,75
-AMISTAR TOP,Terrestrial,,,,30,50
-AMISTAR TOP,Urban,,,,15,90
-AMISTAR TOP,Urban,,,,25,75
-AMISTAR TOP,Urban,,,,40,50
-`
-            },
-
-            "IN": {
-                name: "India",
-                flag: "🇮🇳",
-                bbox: [68.17, 6.75, 97.40, 35.50],
-                vareaTypes: [
-                    { key: "Aquatic", label: "Aquatic - Water bodies (rivers, tanks, ponds)", color: "#1565c0" },
-                    { key: "Terrestrial", label: "Terrestrial - Forests & protected areas", color: "#2e7d32" },
-                    { key: "Urban", label: "Urban - Settlements & habitations", color: "#e65100" }
-                ],
-                osmTags: {
-                    "Aquatic": { "natural": ["water", "wetland"], "water": true, "waterway": true, "landuse": ["reservoir", "basin"] },
-                    "Terrestrial": { "natural": ["wood", "scrub"], "landuse": ["forest"], "boundary": ["protected_area"] },
-                    "Urban": { "landuse": ["residential", "commercial", "retail"], "building": ["house", "apartments", "school", "hospital"], "place": ["village", "town"] }
-                },
-                rules: `cp-product,varea-type,slope-min[%],slope-max[%],slope-dist[m],buffer-dist[m],drift-reduction[%]
-ACTARA 250 WG,Aquatic,,,,20,90
-ACTARA 250 WG,Aquatic,,,,30,75
-ACTARA 250 WG,Aquatic,,,,50,50
-ACTARA 250 WG,Urban,,,,15,90
-ACTARA 250 WG,Urban,,,,25,75
-ACTARA 250 WG,Urban,,,,40,50
-SCORE,Aquatic,,,,15,90
-SCORE,Aquatic,,,,25,75
-SCORE,Aquatic,,,,40,50
-SCORE,Terrestrial,,,,5,90
-SCORE,Terrestrial,,,,10,75
-SCORE,Terrestrial,,,,20,50
-KARATE ZEON,Aquatic,,,,30,90
-KARATE ZEON,Aquatic,,,,50,75
-KARATE ZEON,Aquatic,,,,80,50
-KARATE ZEON,Terrestrial,,,,20,90
-KARATE ZEON,Terrestrial,,,,40,75
-KARATE ZEON,Terrestrial,,,,60,50
-KARATE ZEON,Urban,,,,20,90
-KARATE ZEON,Urban,,,,30,75
-KARATE ZEON,Urban,,,,50,50
-AMISTAR,Aquatic,,,,20,90
-AMISTAR,Aquatic,,,,30,75
-AMISTAR,Aquatic,,,,50,50
-AMISTAR,Terrestrial,,,,5,90
-AMISTAR,Terrestrial,,,,15,75
-AMISTAR,Terrestrial,,,,25,50
-AMISTAR,Urban,,,,10,90
-AMISTAR,Urban,,,,20,75
-AMISTAR,Urban,,,,30,50
-`
-            },
-
-            "AU": {
-                name: "Australia",
-                flag: "🇦🇺",
-                bbox: [113.34, -43.63, 153.57, -10.67],
-                vareaTypes: [
-                    { key: "Aquatic", label: "Aquatic - Waterways & wetlands", color: "#1565c0" },
-                    { key: "Terrestrial", label: "Terrestrial - Native vegetation & habitat", color: "#2e7d32" },
-                    { key: "Urban", label: "Urban - Residential & public areas", color: "#e65100" }
-                ],
-                osmTags: {
-                    "Aquatic": { "natural": ["water", "wetland"], "water": true, "waterway": true, "landuse": ["reservoir", "basin"] },
-                    "Terrestrial": { "natural": ["wood", "scrub", "heath"], "landuse": ["forest", "nature_reserve"], "boundary": ["protected_area", "national_park"] },
-                    "Urban": { "landuse": ["residential", "commercial", "retail"], "building": ["house", "apartments", "school", "hospital"] }
-                },
-                rules: `cp-product,varea-type,slope-min[%],slope-max[%],slope-dist[m],buffer-dist[m],drift-reduction[%]
-AMISTAR,Aquatic,,,,20,90
-AMISTAR,Aquatic,,,,30,75
-AMISTAR,Aquatic,,,,50,50
-AMISTAR,Terrestrial,,,,5,90
-AMISTAR,Terrestrial,,,,15,75
-AMISTAR,Terrestrial,,,,25,50
-AMISTAR,Urban,,,,10,90
-AMISTAR,Urban,,,,20,75
-AMISTAR,Urban,,,,30,50
-SCORE,Aquatic,,,,15,90
-SCORE,Aquatic,,,,25,75
-SCORE,Aquatic,,,,40,50
-SCORE,Terrestrial,,,,5,90
-SCORE,Terrestrial,,,,10,75
-SCORE,Terrestrial,,,,20,50
-KARATE ZEON,Aquatic,,,,30,90
-KARATE ZEON,Aquatic,,,,50,75
-KARATE ZEON,Aquatic,,,,80,50
-KARATE ZEON,Terrestrial,,,,20,90
-KARATE ZEON,Terrestrial,,,,40,75
-KARATE ZEON,Terrestrial,,,,60,50
-KARATE ZEON,Urban,,,,20,90
-KARATE ZEON,Urban,,,,30,75
-KARATE ZEON,Urban,,,,50,50
-CRUISER 350 FS,Aquatic,,,,10,90
-CRUISER 350 FS,Aquatic,,,,15,75
-CRUISER 350 FS,Aquatic,,,,25,50
-CRUISER 350 FS,Urban,,,,10,90
-CRUISER 350 FS,Urban,,,,15,75
-CRUISER 350 FS,Urban,,,,20,50
 `
             }
         };
@@ -2325,193 +1946,6 @@ CRUISER 350 FS,Urban,,,,20,50
         let resultMessage = '';
         let uploadedVareas = null;    // GeoJSON from file upload (overrides OSM)
         let uploadedSlope = null;     // GeoJSON from file upload (overrides SenHub DEM)
-        let osmVareas = null;         // GeoJSON fetched client-side from OSM
-
-        /* ──────────────────────────────────────────────────
-           2b. AUTO-DETECT COUNTRY FROM FIELD BOUNDARY
-           ────────────────────────────────────────────────── */
-
-        function getFieldCentroid(gj) {
-            if (!gj || !gj.features || gj.features.length === 0) return null;
-            var coords = [];
-            gj.features.forEach(function (f) {
-                function collect(c) {
-                    if (typeof c[0] === 'number') { coords.push(c); }
-                    else { c.forEach(collect); }
-                }
-                if (f.geometry && f.geometry.coordinates) collect(f.geometry.coordinates);
-            });
-            if (coords.length === 0) return null;
-            var sumLon = 0, sumLat = 0;
-            coords.forEach(function (c) { sumLon += c[0]; sumLat += c[1]; });
-            return [sumLon / coords.length, sumLat / coords.length];
-        }
-
-        function detectCountryFromCoords(lon, lat) {
-            for (var code in COUNTRY_CONFIG) {
-                var bb = COUNTRY_CONFIG[code].bbox;
-                if (bb && lon >= bb[0] && lat >= bb[1] && lon <= bb[2] && lat <= bb[3]) {
-                    return code;
-                }
-            }
-            return null;
-        }
-
-        function autoDetectCountry(gj) {
-            var centroid = getFieldCentroid(gj);
-            if (!centroid) return;
-            var detected = detectCountryFromCoords(centroid[0], centroid[1]);
-            if (detected && detected !== activeCountry) {
-                setCountry(detected);
-                document.getElementById('auto-detect-info').style.display = 'block';
-                document.getElementById('auto-detect-info').textContent =
-                    '🌍 Country auto-detected: ' + COUNTRY_CONFIG[detected].name + ' (from field coordinates)';
-            }
-        }
-
-        /* ──────────────────────────────────────────────────
-           2c. CLIENT-SIDE OSM FETCH (Overpass API)
-           ────────────────────────────────────────────────── */
-
-        var OSM_ENDPOINTS = [
-            "https://overpass-api.de/api/interpreter",
-            "https://overpass.kumi.systems/api/interpreter",
-            "https://overpass.openstreetmap.fr/api/interpreter"
-        ];
-
-        function buildOverpassQuery(fieldGj, osmTagsConfig, bufferMeters) {
-            // Get bounding box from field with buffer
-            var coords = [];
-            fieldGj.features.forEach(function (f) {
-                function collect(c) {
-                    if (typeof c[0] === 'number') coords.push(c);
-                    else c.forEach(collect);
-                }
-                if (f.geometry && f.geometry.coordinates) collect(f.geometry.coordinates);
-            });
-            var minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
-            coords.forEach(function (c) {
-                if (c[0] < minLon) minLon = c[0];
-                if (c[1] < minLat) minLat = c[1];
-                if (c[0] > maxLon) maxLon = c[0];
-                if (c[1] > maxLat) maxLat = c[1];
-            });
-            // Buffer ~500m (approx 0.005 deg)
-            var buf = (bufferMeters || 500) / 111000;
-            minLat -= buf; minLon -= buf; maxLat += buf; maxLon += buf;
-            var bbox = minLat.toFixed(6) + ',' + minLon.toFixed(6) + ',' + maxLat.toFixed(6) + ',' + maxLon.toFixed(6);
-
-            var parts = [];
-            for (var vareaType in osmTagsConfig) {
-                var tags = osmTagsConfig[vareaType];
-                for (var osmKey in tags) {
-                    var osmVal = tags[osmKey];
-                    if (osmVal === true) {
-                        // Any value for this key
-                        parts.push('node["' + osmKey + '"](' + bbox + ');');
-                        parts.push('way["' + osmKey + '"](' + bbox + ');');
-                        parts.push('relation["' + osmKey + '"](' + bbox + ');');
-                    } else if (Array.isArray(osmVal)) {
-                        osmVal.forEach(function (v) {
-                            parts.push('node["' + osmKey + '"="' + v + '"](' + bbox + ');');
-                            parts.push('way["' + osmKey + '"="' + v + '"](' + bbox + ');');
-                            parts.push('relation["' + osmKey + '"="' + v + '"](' + bbox + ');');
-                        });
-                    }
-                }
-            }
-
-            return '[out:json][timeout:30];(' + parts.join('') + ');out body;>;out skel qt;';
-        }
-
-        function osmJsonToGeoJSON(osmData, osmTagsConfig) {
-            // Build lookup of nodes
-            var nodes = {};
-            (osmData.elements || []).forEach(function (el) {
-                if (el.type === 'node') nodes[el.id] = el;
-            });
-
-            var features = [];
-            (osmData.elements || []).forEach(function (el) {
-                if (el.type === 'node' && el.tags) {
-                    var vtype = classifyOsmElement(el.tags, osmTagsConfig);
-                    if (vtype) {
-                        features.push({
-                            type: 'Feature',
-                            properties: { 'varea-type': vtype, 'osm-id': el.id },
-                            geometry: { type: 'Point', coordinates: [el.lon, el.lat] }
-                        });
-                    }
-                } else if (el.type === 'way' && el.nodes && el.tags) {
-                    var vtype2 = classifyOsmElement(el.tags, osmTagsConfig);
-                    if (vtype2) {
-                        var wayCoords = el.nodes.map(function (nid) {
-                            var n = nodes[nid];
-                            return n ? [n.lon, n.lat] : null;
-                        }).filter(Boolean);
-                        if (wayCoords.length >= 2) {
-                            var isClosed = el.nodes[0] === el.nodes[el.nodes.length - 1] && wayCoords.length >= 4;
-                            features.push({
-                                type: 'Feature',
-                                properties: { 'varea-type': vtype2, 'osm-id': el.id },
-                                geometry: isClosed
-                                    ? { type: 'Polygon', coordinates: [wayCoords] }
-                                    : { type: 'LineString', coordinates: wayCoords }
-                            });
-                        }
-                    }
-                }
-            });
-            return { type: 'FeatureCollection', features: features };
-        }
-
-        function classifyOsmElement(tags, osmTagsConfig) {
-            for (var vareaType in osmTagsConfig) {
-                var cfg = osmTagsConfig[vareaType];
-                for (var osmKey in cfg) {
-                    if (tags[osmKey] !== undefined) {
-                        var osmVal = cfg[osmKey];
-                        if (osmVal === true) return vareaType;
-                        if (Array.isArray(osmVal) && osmVal.indexOf(tags[osmKey]) !== -1) return vareaType;
-                    }
-                }
-            }
-            return null;
-        }
-
-        function fetchOsmVareas(fieldGj, osmTagsConfig, callback) {
-            var query = buildOverpassQuery(fieldGj, osmTagsConfig, 500);
-            var endpointIdx = 0;
-
-            function tryEndpoint() {
-                if (endpointIdx >= OSM_ENDPOINTS.length) {
-                    callback(null, 'All OSM endpoints failed.');
-                    return;
-                }
-                var url = OSM_ENDPOINTS[endpointIdx];
-                showResult('Fetching OSM data from ' + url.split('/')[2] + '…', 'info');
-
-                fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: 'data=' + encodeURIComponent(query)
-                })
-                    .then(function (r) {
-                        if (!r.ok) throw new Error('HTTP ' + r.status);
-                        return r.json();
-                    })
-                    .then(function (osmData) {
-                        var gj = osmJsonToGeoJSON(osmData, osmTagsConfig);
-                        callback(gj, null);
-                    })
-                    .catch(function (err) {
-                        console.warn('OSM endpoint ' + url + ' failed:', err.message);
-                        endpointIdx++;
-                        tryEndpoint();
-                    });
-            }
-            tryEndpoint();
-        }
 
         /* ──────────────────────────────────────────────────
            3. MAP INITIALISATION
@@ -2576,9 +2010,7 @@ CRUISER 350 FS,Urban,,,,20,50
                     fieldLayer.clearLayers();
                     fieldLayer.addLayer(e.layer);
                     geojsonField = fieldLayer.toGeoJSON();
-                    osmVareas = null;
                     showFieldInfo();
-                    autoDetectCountry(geojsonField);
                 } else if (drawMode === 'varea') {
                     var selectedType = document.getElementById('varea-type-select').value;
                     addVareaFeature(e.layer, selectedType);
@@ -2589,14 +2021,12 @@ CRUISER 350 FS,Urban,,,,20,50
 
             map.on(L.Draw.Event.EDITED, function () {
                 geojsonField = fieldLayer.toGeoJSON();
-                osmVareas = null;
                 showFieldInfo();
             });
 
             map.on(L.Draw.Event.DELETED, function () {
                 geojsonField = fieldLayer.toGeoJSON();
                 if (fieldLayer.getLayers().length === 0) geojsonField = null;
-                osmVareas = null;
                 showFieldInfo();
             });
 
@@ -2637,10 +2067,8 @@ CRUISER 350 FS,Urban,,,,20,50
                         onEachFeature: function (f, layer) { fieldLayer.addLayer(layer); }
                     });
                     geojsonField = gj;
-                    osmVareas = null;
                     map.fitBounds(fieldLayer.getBounds());
                     showFieldInfo();
-                    autoDetectCountry(gj);
                 } catch (err) {
                     showResult('Error parsing GeoJSON: ' + err.message, 'error');
                 }
@@ -2940,7 +2368,7 @@ CRUISER 350 FS,Urban,,,,20,50
             }
         }
 
-        // Fetch from OSM first (client-side), then allow editing
+        // Fetch from OSM first, then allow editing
         function loadVareasFromOsm() {
             if (!geojsonField) {
                 showResult('Please draw or upload a field boundary first.', 'error');
@@ -2949,20 +2377,38 @@ CRUISER 350 FS,Urban,,,,20,50
             showResult('Fetching vulnerable areas from OpenStreetMap…', 'info');
             document.getElementById('loading').style.display = 'block';
 
-            var osmTagsCfg = COUNTRY_CONFIG[activeCountry].osmTags;
-            fetchOsmVareas(geojsonField, osmTagsCfg, function (gjResult, error) {
-                document.getElementById('loading').style.display = 'none';
-                if (error) {
-                    showResult('Error fetching from OSM: ' + error, 'error');
-                } else if (gjResult && gjResult.features && gjResult.features.length > 0) {
-                    clearVareas();
-                    loadVareaGeoJSON(gjResult);
-                    osmVareas = gjResult;
-                    showResult('Loaded ' + gjResult.features.length + ' vulnerable areas from OSM. You can now edit them.', 'success');
-                } else {
-                    showResult('No vulnerable areas found near the field from OSM.', 'info');
-                }
-            });
+            const paramsJson = getCurrentParams();
+            const allRules = getCurrentRulesJson();
+            const rules = filterRulesByProducts(allRules);
+
+            const requestData = {
+                field: geojsonField,
+                params: paramsJson,
+                rules: rules || allRules,
+                vareas: null,
+                outdir: null
+            };
+
+            fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestData)
+            })
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('loading').style.display = 'none';
+                    if (data.vareas && data.vareas.features && data.vareas.features.length > 0) {
+                        clearVareas();
+                        loadVareaGeoJSON(data.vareas);
+                        showResult(`Loaded ${data.vareas.features.length} vulnerable areas from OSM. You can now edit them.`, 'success');
+                    } else {
+                        showResult('No vulnerable areas found near the field from OSM.', 'info');
+                    }
+                })
+                .catch(err => {
+                    document.getElementById('loading').style.display = 'none';
+                    showResult('Error fetching from OSM: ' + err.message, 'error');
+                });
         }
 
         // Build GeoJSON from custom vulnerable areas
@@ -3217,62 +2663,19 @@ CRUISER 350 FS,Urban,,,,20,50
             let vareas = null;
             if (uploadedVareas) {
                 vareas = uploadedVareas;
-            } else if (osmVareas) {
-                vareas = osmVareas;
             } else if (vareaSource === 'custom') {
                 vareas = buildVareasGeoJSON();
             }
 
-            // If vareas is still null and source is OSM, fetch client-side first
-            if (!vareas && vareaSource === 'osm') {
-                document.getElementById('loading').style.display = 'block';
-                document.getElementById('submit-btn').disabled = true;
-                showResult('⏳ Step 1/2: Fetching vulnerable areas from OpenStreetMap…', 'info');
+            // Determine slope
+            let slopeData = uploadedSlope || null;
 
-                var osmTagsCfg = COUNTRY_CONFIG[activeCountry].osmTags;
-                fetchOsmVareas(geojsonField, osmTagsCfg, function (gjResult, error) {
-                    if (error) {
-                        showResult('OSM fetch failed: ' + error + '. Submitting without pre-fetched vareas…', 'info');
-                        osmVareas = null;
-                    } else if (gjResult && gjResult.features && gjResult.features.length > 0) {
-                        osmVareas = gjResult;
-                        showResult('✓ Fetched ' + gjResult.features.length + ' vulnerable areas from OSM. Submitting to API…', 'info');
-                        // Show on map
-                        if (vareaLayer) vareaLayer.clearLayers();
-                        L.geoJSON(gjResult, {
-                            style: function (f) {
-                                var t = f.properties['varea-type'] || 'Aquatic';
-                                return { color: getVareaColor(t), weight: 2, fillOpacity: 0.2 };
-                            },
-                            onEachFeature: function (f, layer) {
-                                var t = f.properties['varea-type'] || 'unknown';
-                                layer.bindTooltip(t, { sticky: true });
-                                vareaLayer.addLayer(layer);
-                            }
-                        });
-                    } else {
-                        showResult('No vulnerable areas found from OSM near this field. Submitting anyway…', 'info');
-                        osmVareas = null;
-                    }
-                    // Now proceed with actual API submission
-                    doApiSubmit(paramsJson, rules, osmVareas, uploadedSlope);
-                });
-                return;
-            }
-
-            // Direct submit (vareas already available)
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('submit-btn').disabled = true;
-            doApiSubmit(paramsJson, rules, vareas, uploadedSlope);
-        }
-
-        function doApiSubmit(paramsJson, rules, vareas, slopeData) {
             const requestData = {
                 field: geojsonField,
                 params: paramsJson,
                 rules: rules,
                 vareas: vareas,
-                slope: slopeData || null,
+                slope: slopeData,
                 outdir: null
             };
 
