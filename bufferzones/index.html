@@ -329,10 +329,6 @@
             display: none;
         }
 
-        .radio-group input:checked+span {
-            /* parent label styled via JS */
-        }
-
         .radio-group label.selected {
             background: var(--primary);
             color: white;
@@ -1141,16 +1137,54 @@
                         </div>
 
                         <div id="osm-panel">
-                            <p class="hint">Vulnerable areas will be <strong>automatically fetched from
-                                    OpenStreetMap</strong> (client-side) when you click Calculate.
-                                After results return, you can <strong>edit them</strong> and re-submit.
+                            <p class="hint">Extract vulnerable areas from OpenStreetMap within
+                                <strong>500 m</strong> of your field boundary. Review &amp; edit them,
+                                then submit.
                             </p>
-                            <div id="osm-prefetch-status"
-                                style="display:none;margin-bottom:8px;padding:8px 10px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;font-size:11px;color:#2e7d32;">
+
+                            <!-- Extract button -->
+                            <button class="btn btn-accent" id="osm-extract-btn" onclick="extractOsmVareas()"
+                                style="width:100%;margin-top:8px;padding:10px 0;font-size:14px;">
+                                🌍 Extract Vulnerable Areas from OSM
+                            </button>
+
+                            <!-- Progress / status -->
+                            <div id="osm-extract-status"
+                                style="display:none;margin-top:8px;padding:10px 12px;border-radius:6px;font-size:12px;">
                             </div>
-                            <div style="margin-top:8px; padding-top:8px; border-top:1px solid var(--border);">
+
+                            <!-- Results summary (shown after extraction) -->
+                            <div id="osm-extract-results" style="display:none;margin-top:10px;">
+                                <div
+                                    style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                                    <strong style="font-size:13px;">Extracted Features</strong>
+                                    <span id="osm-extract-count" style="font-size:11px;color:var(--text-light);"></span>
+                                </div>
+                                <div id="osm-extract-summary" style="font-size:12px;margin-bottom:8px;"></div>
+
+                                <!-- Editing tools -->
+                                <div class="action-bar">
+                                    <button class="btn btn-primary btn-sm" onclick="startDrawVarea('polygon')">▣ Add
+                                        Polygon</button>
+                                    <button class="btn btn-primary btn-sm" onclick="startDrawVarea('polyline')">╱ Add
+                                        Line</button>
+                                    <button class="btn btn-danger btn-sm" onclick="clearExtractedOsm()">✕ Clear
+                                        All</button>
+                                </div>
+
+                                <div class="form-group" style="margin-top:6px;">
+                                    <label style="font-size:11px;">Type for new areas</label>
+                                    <select id="osm-varea-type-select" style="font-size:12px;padding:4px 6px;"></select>
+                                </div>
+
+                                <!-- Editable list -->
+                                <div id="osm-varea-list" class="varea-list"></div>
+                            </div>
+
+                            <!-- Divider -->
+                            <div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
                                 <p class="hint" style="margin-bottom:6px;">Or upload your own vulnerable areas GeoJSON
-                                    (overrides OSM):</p>
+                                    (overrides OSM extraction):</p>
                                 <div class="action-bar">
                                     <button class="btn btn-outline btn-sm"
                                         onclick="document.getElementById('vareas-file-upload').click()">&#8593; Upload
@@ -2580,10 +2614,12 @@ CRUISER 350 FS,Urban,,,,20,50
                     showFieldInfo();
                     autoDetectCountry(geojsonField);
                 } else if (drawMode === 'varea') {
-                    var selectedType = document.getElementById('varea-type-select').value;
+                    var selectedType = getActiveVareaTypeSelect();
                     addVareaFeature(e.layer, selectedType);
                     document.getElementById('mode-bar').classList.remove('active');
                     drawMode = 'field';
+                    // Update OSM panel list if visible
+                    renderOsmVareaList();
                 }
             });
 
@@ -2760,6 +2796,16 @@ CRUISER 350 FS,Urban,,,,20,50
             document.getElementById('slope-file-upload').value = '';
         }
 
+        function getActiveVareaTypeSelect() {
+            // Use OSM panel's selector if OSM source is active, otherwise custom panel's
+            if (vareaSource === 'osm') {
+                var sel = document.getElementById('osm-varea-type-select');
+                if (sel && sel.value) return sel.value;
+            }
+            var sel2 = document.getElementById('varea-type-select');
+            return sel2 ? sel2.value : 'Aquatic';
+        }
+
         function startDrawVarea(shapeType) {
             drawMode = 'varea';
             document.getElementById('mode-bar').classList.add('active');
@@ -2767,7 +2813,7 @@ CRUISER 350 FS,Urban,,,,20,50
             let drawer;
             const opts = {
                 shapeOptions: {
-                    color: getVareaColor(document.getElementById('varea-type-select').value),
+                    color: getVareaColor(getActiveVareaTypeSelect()),
                     weight: 3,
                     fillOpacity: 0.3
                 }
@@ -2940,7 +2986,126 @@ CRUISER 350 FS,Urban,,,,20,50
             }
         }
 
-        // Fetch from OSM first (client-side), then allow editing
+        // ── Extract OSM vulnerable areas (button in OSM panel) ──
+        function extractOsmVareas() {
+            if (!geojsonField) {
+                showResult('Please draw or upload a field boundary first.', 'error');
+                return;
+            }
+
+            var statusEl = document.getElementById('osm-extract-status');
+            var resultsEl = document.getElementById('osm-extract-results');
+            var btn = document.getElementById('osm-extract-btn');
+
+            // Show progress
+            btn.disabled = true;
+            btn.textContent = '⏳ Extracting…';
+            statusEl.style.display = 'block';
+            statusEl.style.background = '#e3f2fd';
+            statusEl.style.border = '1px solid #90caf9';
+            statusEl.style.color = '#1565c0';
+            statusEl.textContent = 'Querying Overpass API (500 m buffer)…';
+            resultsEl.style.display = 'none';
+
+            var osmTagsCfg = COUNTRY_CONFIG[activeCountry].osmTags;
+            fetchOsmVareas(geojsonField, osmTagsCfg, function (gjResult, error) {
+                btn.disabled = false;
+                btn.textContent = '🌍 Extract Vulnerable Areas from OSM';
+
+                if (error) {
+                    statusEl.style.background = '#ffebee';
+                    statusEl.style.border = '1px solid #ef9a9a';
+                    statusEl.style.color = '#c62828';
+                    statusEl.textContent = '✗ ' + error;
+                    showResult('OSM extraction failed: ' + error, 'error');
+                    return;
+                }
+
+                if (!gjResult || !gjResult.features || gjResult.features.length === 0) {
+                    statusEl.style.background = '#fff3e0';
+                    statusEl.style.border = '1px solid #ffcc80';
+                    statusEl.style.color = '#e65100';
+                    statusEl.textContent = 'No vulnerable areas found within 500 m of the field.';
+                    showResult('No vulnerable areas found near the field from OSM.', 'info');
+                    return;
+                }
+
+                // Success – load features as editable
+                clearVareas();
+                loadVareaGeoJSON(gjResult);
+                osmVareas = gjResult;
+
+                // Status badge
+                statusEl.style.background = '#e8f5e9';
+                statusEl.style.border = '1px solid #a5d6a7';
+                statusEl.style.color = '#2e7d32';
+                statusEl.textContent = '✓ ' + gjResult.features.length + ' features extracted.';
+
+                // Build summary by type
+                var types = {};
+                gjResult.features.forEach(function (f) {
+                    var t = (f.properties && f.properties['varea-type']) || 'unknown';
+                    types[t] = (types[t] || 0) + 1;
+                });
+                var summaryHtml = Object.keys(types).map(function (k) {
+                    var c = getVareaColor(k);
+                    return '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + c + ';margin-right:4px;"></span>' + k + ': <strong>' + types[k] + '</strong>';
+                }).join(' &nbsp;|&nbsp; ');
+
+                document.getElementById('osm-extract-count').textContent = gjResult.features.length + ' features';
+                document.getElementById('osm-extract-summary').innerHTML = summaryHtml;
+                resultsEl.style.display = 'block';
+
+                // Populate type selector for adding more
+                populateOsmVareaTypeSelect();
+
+                // Render editable list inside OSM panel
+                renderOsmVareaList();
+
+                showResult('Extracted ' + gjResult.features.length + ' vulnerable areas from OSM. Edit them on the map, then click Calculate.', 'success');
+            });
+        }
+
+        function populateOsmVareaTypeSelect() {
+            var sel = document.getElementById('osm-varea-type-select');
+            if (!sel) return;
+            sel.innerHTML = '';
+            getActiveVareaTypes().forEach(function (t) {
+                var opt = document.createElement('option');
+                opt.value = t.key;
+                opt.textContent = t.label;
+                sel.appendChild(opt);
+            });
+        }
+
+        function renderOsmVareaList() {
+            var listEl = document.getElementById('osm-varea-list');
+            if (!listEl) return;
+            if (vareaFeatures.length === 0) {
+                listEl.innerHTML = '<p style="color:#999;font-size:11px;margin-top:8px;">No vulnerable areas.</p>';
+                return;
+            }
+            var html = '';
+            vareaFeatures.forEach(function (f) {
+                var c = getVareaColor(f.type);
+                html += '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid #eee;font-size:12px;">';
+                html += '<span style="width:10px;height:10px;border-radius:50%;background:' + c + ';flex-shrink:0;"></span>';
+                html += '<span style="flex:1;">#' + (f.id + 1) + ' – ' + f.type + '</span>';
+                html += '<button class="btn btn-danger" style="padding:2px 6px;font-size:10px;" onclick="removeVarea(' + f.id + ');renderOsmVareaList();">✕</button>';
+                html += '</div>';
+            });
+            listEl.innerHTML = html;
+        }
+
+        function clearExtractedOsm() {
+            clearVareas();
+            osmVareas = null;
+            document.getElementById('osm-extract-results').style.display = 'none';
+            document.getElementById('osm-extract-status').style.display = 'none';
+            showResult('Cleared all extracted vulnerable areas.', 'info');
+        }
+
+        // Fetch from OSM (for custom panel)
         function loadVareasFromOsm() {
             if (!geojsonField) {
                 showResult('Please draw or upload a field boundary first.', 'error');
@@ -3213,50 +3378,20 @@ CRUISER 350 FS,Urban,,,,20,50
                 return;
             }
 
-            // Determine vareas
+            // Determine vareas — use current editable features when available
             let vareas = null;
             if (uploadedVareas) {
                 vareas = uploadedVareas;
+            } else if (vareaFeatures.length > 0) {
+                // Covers both OSM-extracted (then edited) and custom-drawn
+                vareas = buildVareasGeoJSON();
             } else if (osmVareas) {
                 vareas = osmVareas;
-            } else if (vareaSource === 'custom') {
-                vareas = buildVareasGeoJSON();
             }
 
-            // If vareas is still null and source is OSM, fetch client-side first
+            // If source is OSM but no vareas extracted yet, prompt user
             if (!vareas && vareaSource === 'osm') {
-                document.getElementById('loading').style.display = 'block';
-                document.getElementById('submit-btn').disabled = true;
-                showResult('⏳ Step 1/2: Fetching vulnerable areas from OpenStreetMap…', 'info');
-
-                var osmTagsCfg = COUNTRY_CONFIG[activeCountry].osmTags;
-                fetchOsmVareas(geojsonField, osmTagsCfg, function (gjResult, error) {
-                    if (error) {
-                        showResult('OSM fetch failed: ' + error + '. Submitting without pre-fetched vareas…', 'info');
-                        osmVareas = null;
-                    } else if (gjResult && gjResult.features && gjResult.features.length > 0) {
-                        osmVareas = gjResult;
-                        showResult('✓ Fetched ' + gjResult.features.length + ' vulnerable areas from OSM. Submitting to API…', 'info');
-                        // Show on map
-                        if (vareaLayer) vareaLayer.clearLayers();
-                        L.geoJSON(gjResult, {
-                            style: function (f) {
-                                var t = f.properties['varea-type'] || 'Aquatic';
-                                return { color: getVareaColor(t), weight: 2, fillOpacity: 0.2 };
-                            },
-                            onEachFeature: function (f, layer) {
-                                var t = f.properties['varea-type'] || 'unknown';
-                                layer.bindTooltip(t, { sticky: true });
-                                vareaLayer.addLayer(layer);
-                            }
-                        });
-                    } else {
-                        showResult('No vulnerable areas found from OSM near this field. Submitting anyway…', 'info');
-                        osmVareas = null;
-                    }
-                    // Now proceed with actual API submission
-                    doApiSubmit(paramsJson, rules, osmVareas, uploadedSlope);
-                });
+                showResult('Please click "Extract Vulnerable Areas from OSM" first, review the results, then Calculate.', 'error');
                 return;
             }
 
