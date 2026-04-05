@@ -1137,10 +1137,18 @@
                         </div>
 
                         <div id="osm-panel">
-                            <p class="hint">Extract vulnerable areas from OpenStreetMap within
-                                <strong>500 m</strong> of your field boundary. Review &amp; edit them,
-                                then submit.
+                            <p class="hint">Extract vulnerable areas from OpenStreetMap around
+                                your field boundary. Review &amp; edit them, then submit.
                             </p>
+
+                            <div style="display:flex;align-items:center;gap:8px;margin:8px 0;">
+                                <label style="font-size:12px;white-space:nowrap;">Search radius (m):</label>
+                                <input type="number" id="osm-buffer-dist" min="50" max="5000" step="10"
+                                    style="width:90px;padding:4px 6px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius);">
+                                <span style="font-size:10px;color:var(--text-light);">
+                                    auto = max buffer-dist + 10%
+                                </span>
+                            </div>
 
                             <!-- Extract button -->
                             <button class="btn btn-accent" id="osm-extract-btn" onclick="extractOsmVareas()"
@@ -1168,6 +1176,8 @@
                                         Polygon</button>
                                     <button class="btn btn-primary btn-sm" onclick="startDrawVarea('polyline')">╱ Add
                                         Line</button>
+                                    <button class="btn btn-outline btn-sm" id="osm-edit-toggle"
+                                        onclick="toggleVareaEdit()">✎ Edit Vertices</button>
                                     <button class="btn btn-danger btn-sm" onclick="clearExtractedOsm()">✕ Clear
                                         All</button>
                                 </div>
@@ -1225,8 +1235,10 @@
                             </div>
 
                             <div class="action-bar" style="margin-top:4px;">
-                                <button class="btn btn-outline btn-sm" onclick="loadVareasFromOsm()">⟳ Fetch from OSM
-                                    &amp; Edit</button>
+                                <button class="btn btn-outline btn-sm" onclick="loadVareasFromOsm()">⟳ Fetch from
+                                    OSM</button>
+                                <button class="btn btn-outline btn-sm" id="custom-edit-toggle"
+                                    onclick="toggleVareaEdit()">✎ Edit Vertices</button>
                                 <button class="btn btn-danger btn-sm" onclick="clearVareas()">✕ Clear All</button>
                             </div>
 
@@ -2299,6 +2311,11 @@ CRUISER 350 FS,Urban,,,,20,50
             renderCSVTable(csvData);
             initProducts();
 
+            // Auto-update OSM buffer distance from new rules
+            var osmBufInput = document.getElementById('osm-buffer-dist');
+            if (osmBufInput) { osmBufInput.dataset.auto = 'true'; }
+            updateOsmBufferInput();
+
             // Update varea type selector
             populateVareaTypeSelect();
 
@@ -2513,8 +2530,35 @@ CRUISER 350 FS,Urban,,,,20,50
             return null;
         }
 
-        function fetchOsmVareas(fieldGj, osmTagsConfig, callback) {
-            var query = buildOverpassQuery(fieldGj, osmTagsConfig, 500);
+        function getMaxBufferDist() {
+            // Parse max buffer-dist[m] from current rules, add 10%, min 100m
+            var max = 0;
+            if (csvParsed && csvParsed.length > 0) {
+                csvParsed.forEach(function (row) {
+                    var v = parseFloat(row['buffer-dist[m]']);
+                    if (!isNaN(v) && v > max) max = v;
+                });
+            }
+            if (max <= 0) return 500; // fallback
+            return Math.ceil(max * 1.1);
+        }
+
+        function getOsmBufferDist() {
+            var input = document.getElementById('osm-buffer-dist');
+            var v = parseInt(input.value, 10);
+            return (v && v > 0) ? v : getMaxBufferDist();
+        }
+
+        function updateOsmBufferInput() {
+            var input = document.getElementById('osm-buffer-dist');
+            if (input && (!input.value || input.dataset.auto !== 'false')) {
+                input.value = getMaxBufferDist();
+                input.dataset.auto = 'true';
+            }
+        }
+
+        function fetchOsmVareas(fieldGj, osmTagsConfig, bufferMeters, callback) {
+            var query = buildOverpassQuery(fieldGj, osmTagsConfig, bufferMeters);
             var endpointIdx = 0;
 
             function tryEndpoint() {
@@ -2834,6 +2878,25 @@ CRUISER 350 FS,Urban,,,,20,50
             map.fire('draw:drawstop');
         }
 
+        var vareaEditMode = false;
+
+        function toggleVareaEdit() {
+            vareaEditMode = !vareaEditMode;
+            vareaFeatures.forEach(function (f) {
+                if (f.layer && f.layer.editing) {
+                    if (vareaEditMode) f.layer.editing.enable();
+                    else f.layer.editing.disable();
+                }
+            });
+            // Update button labels
+            var label = vareaEditMode ? '✎ Stop Editing' : '✎ Edit Vertices';
+            var style = vareaEditMode ? 'background:var(--warning);color:#fff;border-color:var(--warning);' : '';
+            ['osm-edit-toggle', 'custom-edit-toggle'].forEach(function (id) {
+                var btn = document.getElementById(id);
+                if (btn) { btn.textContent = label; btn.style.cssText = style; }
+            });
+        }
+
         function addVareaFeature(layer, type) {
             const id = vareaIdCounter++;
             const color = getVareaColor(type);
@@ -2844,8 +2907,8 @@ CRUISER 350 FS,Urban,,,,20,50
             layer.bindPopup(createVareaPopup(id, type));
             layer.bindTooltip(type, { sticky: true, direction: 'top' });
 
-            // Make editable
-            if (layer.editing) layer.editing.enable();
+            // Enable editing only if edit mode is currently on
+            if (vareaEditMode && layer.editing) layer.editing.enable();
 
             vareaLayer.addLayer(layer);
 
@@ -3004,11 +3067,12 @@ CRUISER 350 FS,Urban,,,,20,50
             statusEl.style.background = '#e3f2fd';
             statusEl.style.border = '1px solid #90caf9';
             statusEl.style.color = '#1565c0';
-            statusEl.textContent = 'Querying Overpass API (500 m buffer)…';
+            var bufDist = getOsmBufferDist();
+            statusEl.textContent = 'Querying Overpass API (' + bufDist + ' m buffer)…';
             resultsEl.style.display = 'none';
 
             var osmTagsCfg = COUNTRY_CONFIG[activeCountry].osmTags;
-            fetchOsmVareas(geojsonField, osmTagsCfg, function (gjResult, error) {
+            fetchOsmVareas(geojsonField, osmTagsCfg, bufDist, function (gjResult, error) {
                 btn.disabled = false;
                 btn.textContent = '🌍 Extract Vulnerable Areas from OSM';
 
@@ -3025,7 +3089,7 @@ CRUISER 350 FS,Urban,,,,20,50
                     statusEl.style.background = '#fff3e0';
                     statusEl.style.border = '1px solid #ffcc80';
                     statusEl.style.color = '#e65100';
-                    statusEl.textContent = 'No vulnerable areas found within 500 m of the field.';
+                    statusEl.textContent = 'No vulnerable areas found within ' + bufDist + ' m of the field.';
                     showResult('No vulnerable areas found near the field from OSM.', 'info');
                     return;
                 }
@@ -3115,7 +3179,8 @@ CRUISER 350 FS,Urban,,,,20,50
             document.getElementById('loading').style.display = 'block';
 
             var osmTagsCfg = COUNTRY_CONFIG[activeCountry].osmTags;
-            fetchOsmVareas(geojsonField, osmTagsCfg, function (gjResult, error) {
+            var bufDist = getOsmBufferDist();
+            fetchOsmVareas(geojsonField, osmTagsCfg, bufDist, function (gjResult, error) {
                 document.getElementById('loading').style.display = 'none';
                 if (error) {
                     showResult('Error fetching from OSM: ' + error, 'error');
@@ -3912,6 +3977,17 @@ CRUISER 350 FS,Urban,,,,20,50
 
                 // Render initial varea list
                 renderVareaList();
+
+                // Set initial OSM buffer distance from rules
+                updateOsmBufferInput();
+
+                // Track manual edits on OSM buffer input
+                var osmBufInput = document.getElementById('osm-buffer-dist');
+                if (osmBufInput) {
+                    osmBufInput.addEventListener('input', function () {
+                        this.dataset.auto = 'false';
+                    });
+                }
             } catch (e) {
                 console.error('Initialization error:', e);
                 document.querySelector('.sidebar-body').innerHTML +=
