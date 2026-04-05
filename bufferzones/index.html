@@ -3388,12 +3388,7 @@ CRUISER 350 FS,Urban,,,,20,50
             } else if (osmVareas) {
                 vareas = osmVareas;
             }
-
-            // If source is OSM but no vareas extracted yet, prompt user
-            if (!vareas && vareaSource === 'osm') {
-                showResult('Please click "Extract Vulnerable Areas from OSM" first, review the results, then Calculate.', 'error');
-                return;
-            }
+            // vareas may be null — the API will fetch OSM data server-side if needed
 
             // Direct submit (vareas already available)
             document.getElementById('loading').style.display = 'block';
