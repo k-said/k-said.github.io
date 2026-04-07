@@ -944,44 +944,55 @@
             flex-shrink: 0;
         }
 
-        /* ── OSM Endpoint Info ──────────────────── */
-        .osm-endpoint-info {
-            margin-top: 8px;
-            padding: 8px 10px;
-            background: #e8f5e9;
-            border: 1px solid #a5d6a7;
-            border-radius: 6px;
-            font-size: 11px;
-            line-height: 1.6;
+        /* ── Submit Button Group ──────────────────── */
+        .submit-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
         }
 
-        .osm-endpoint-info .ep-title {
-            font-weight: 600;
-            color: #2e7d32;
-            margin-bottom: 4px;
-        }
-
-        .osm-endpoint-badge {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 10px;
+        .submit-group .btn-submit-alt {
+            width: 100%;
+            padding: 10px 14px;
+            font-size: 13px;
             font-weight: 500;
-            margin: 2px 2px;
-            background: #c8e6c9;
-            color: #1b5e20;
-            word-break: break-all;
+            background: white;
+            color: var(--primary);
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: background 0.15s;
         }
 
-        .osm-endpoint-badge.used {
-            background: #1b5e20;
-            color: white;
+        .submit-group .btn-submit-alt:hover {
+            background: #f0f1f3;
+            border-color: var(--primary-light);
+        }
+
+        .submit-group .btn-submit-alt:disabled {
+            background: #f5f5f5;
+            color: #aaa;
+            border-color: #ddd;
+            cursor: not-allowed;
+        }
+
+        .submit-group .submit-hint {
+            font-size: 11px;
+            color: var(--text-light);
+            text-align: center;
+            margin: -4px 0 0;
+        }
+
+        .submit-group .recommended-badge {
+            display: inline-block;
+            font-size: 10px;
             font-weight: 600;
-        }
-
-        .osm-endpoint-badge.unused {
-            background: #e0e0e0;
-            color: #757575;
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 1px 6px;
+            border-radius: 4px;
+            margin-left: 6px;
+            vertical-align: middle;
         }
 
         /* ── Retry Banner ──────────────────────── */
@@ -1359,18 +1370,20 @@
                         <span class="step-toggle">▾</span>
                     </div>
                     <div class="step-content open">
-                        <button class="btn-submit" id="submit-btn" onclick="submitToApi()">
-                            Calculate Buffer Zones
-                        </button>
+                        <div class="submit-group">
+                            <button class="btn-submit" id="submit-btn" onclick="extractOsmThenSubmit()">
+                                🌍 Extract OSM &amp; Calculate <span class="recommended-badge">RECOMMENDED</span>
+                            </button>
+                            <p class="submit-hint">Extracts vulnerable areas from OSM in your browser, then calculates
+                                buffer zones.</p>
+                            <button class="btn-submit-alt" id="submit-no-osm-btn" onclick="submitWithoutOsm()">
+                                ⚡ Calculate without OSM extraction
+                            </button>
+                            <p class="submit-hint">Server-side OSM fetch — can be slower and less reliable.</p>
+                        </div>
                         <div id="loading">⏳ Processing… this may take a moment</div>
                         <div id="retry-banner" class="retry-banner" style="display:none;"></div>
                         <div id="results" class="results-box" style="display:none;"></div>
-
-                        <!-- OSM Endpoint Info -->
-                        <div id="osm-endpoint-info" class="osm-endpoint-info" style="display:none;">
-                            <div class="ep-title">OSM Endpoints</div>
-                            <div id="osm-endpoint-list"></div>
-                        </div>
 
                         <!-- Layer Visibility Toggles -->
                         <div id="layer-toggles" class="layer-toggles" style="display:none;">
@@ -3420,45 +3433,139 @@ CRUISER 350 FS,Urban,,,,20,50
             }, 1000);
         }
 
-        function submitToApi() {
-            // Validation
+        /**
+         * Validate inputs shared by both submit paths.
+         * Returns {paramsJson, rules, vareas} or null if invalid.
+         */
+        function validateAndPrepare() {
             if (!geojsonField || !geojsonField.features || geojsonField.features.length === 0) {
                 showResult('Please draw or upload a field boundary first.', 'error');
-                return;
+                return null;
             }
             if (!csvData && !csvParsed) {
                 showResult('No rules loaded. Please check step 3.', 'error');
-                return;
+                return null;
             }
-
-            // Get latest CSV data
             if (csvParsed) csvData = Papa.unparse(csvParsed, { header: true });
 
             const paramsJson = getCurrentParams();
             const allRules = getCurrentRulesJson();
             const rules = filterRulesByProducts(allRules);
-
             if (!rules) {
                 showResult('Select at least one product in step 3.', 'error');
-                return;
+                return null;
             }
 
-            // Determine vareas — use current editable features when available
             let vareas = null;
             if (uploadedVareas) {
                 vareas = uploadedVareas;
             } else if (vareaFeatures.length > 0) {
-                // Covers both OSM-extracted (then edited) and custom-drawn
                 vareas = buildVareasGeoJSON();
             } else if (osmVareas) {
                 vareas = osmVareas;
             }
-            // vareas may be null — the API will fetch OSM data server-side if needed
+            return { paramsJson, rules, vareas };
+        }
 
-            // Direct submit (vareas already available)
+        /**
+         * RECOMMENDED path: extract OSM from front-end, then submit.
+         */
+        function extractOsmThenSubmit() {
+            var prep = validateAndPrepare();
+            if (!prep) return;
+
+            // If vareas already available (uploaded or drawn), skip OSM extraction
+            if (prep.vareas && prep.vareas.features && prep.vareas.features.length > 0) {
+                document.getElementById('loading').style.display = 'block';
+                setSubmitButtonsDisabled(true);
+                doApiSubmit(prep.paramsJson, prep.rules, prep.vareas, uploadedSlope);
+                return;
+            }
+
+            // Extract from OSM client-side first
             document.getElementById('loading').style.display = 'block';
-            document.getElementById('submit-btn').disabled = true;
-            doApiSubmit(paramsJson, rules, vareas, uploadedSlope);
+            setSubmitButtonsDisabled(true);
+            showResult('Extracting vulnerable areas from OSM…', 'info');
+
+            extractOsmVareasAsync(prep.paramsJson).then(function (extractedVareas) {
+                if (extractedVareas && extractedVareas.features && extractedVareas.features.length > 0) {
+                    showResult('OSM extraction done (' + extractedVareas.features.length + ' features). Submitting…', 'info');
+                    doApiSubmit(prep.paramsJson, prep.rules, extractedVareas, uploadedSlope);
+                } else {
+                    showResult('No vulnerable areas found via OSM. Submitting without vareas (server will attempt OSM fetch)…', 'info');
+                    doApiSubmit(prep.paramsJson, prep.rules, null, uploadedSlope);
+                }
+            }).catch(function (err) {
+                showResult('OSM extraction failed: ' + err.message + '. Submitting without vareas…', 'info');
+                doApiSubmit(prep.paramsJson, prep.rules, null, uploadedSlope);
+            });
+        }
+
+        /**
+         * Quick path: submit without front-end OSM extraction (server-side).
+         */
+        function submitWithoutOsm() {
+            var prep = validateAndPrepare();
+            if (!prep) return;
+
+            document.getElementById('loading').style.display = 'block';
+            setSubmitButtonsDisabled(true);
+            doApiSubmit(prep.paramsJson, prep.rules, prep.vareas, uploadedSlope);
+        }
+
+        /** Keep old name as alias for backward compat */
+        function submitToApi() { extractOsmThenSubmit(); }
+
+        function setSubmitButtonsDisabled(disabled) {
+            document.getElementById('submit-btn').disabled = disabled;
+            document.getElementById('submit-no-osm-btn').disabled = disabled;
+        }
+
+        /**
+         * Async wrapper around the existing extractOsmVareas logic.
+         * Returns a Promise<GeoJSON|null>.
+         */
+        function extractOsmVareasAsync(paramsJson) {
+            return new Promise(function (resolve, reject) {
+                if (!geojsonField || !geojsonField.features || geojsonField.features.length === 0) {
+                    return reject(new Error('No field boundary'));
+                }
+                var osmTags = paramsJson['osm-tags'];
+                if (!osmTags || Object.keys(osmTags).length === 0) {
+                    return resolve(null);
+                }
+
+                // Determine buffer
+                var bufferMeters = 500;
+                var bufferInput = document.getElementById('osm-buffer-dist');
+                if (bufferInput && bufferInput.value) {
+                    bufferMeters = parseInt(bufferInput.value) || 500;
+                }
+
+                var query = buildOverpassQuery(geojsonField, osmTags, bufferMeters);
+                var endpoints = OSM_ENDPOINTS.slice();
+
+                function tryNext(idx) {
+                    if (idx >= endpoints.length) {
+                        return reject(new Error('All OSM endpoints failed'));
+                    }
+                    fetch(endpoints[idx], {
+                        method: 'POST',
+                        body: 'data=' + encodeURIComponent(query),
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                    })
+                        .then(function (r) {
+                            if (!r.ok) throw new Error('HTTP ' + r.status);
+                            return r.json();
+                        })
+                        .then(function (osmData) {
+                            var gj = osmJsonToGeoJSON(osmData, osmTags);
+                            resolve(gj);
+                        })
+                        .catch(function () { tryNext(idx + 1); });
+                }
+                tryNext(0);
+            });
         }
 
         function doApiSubmit(paramsJson, rules, vareas, slopeData) {
@@ -3473,14 +3580,13 @@ CRUISER 350 FS,Urban,,,,20,50
 
             // UI updates
             document.getElementById('loading').style.display = 'block';
-            document.getElementById('submit-btn').disabled = true;
+            setSubmitButtonsDisabled(true);
             document.getElementById('download-bz').style.display = 'none';
             document.getElementById('download-va').style.display = 'none';
             document.getElementById('download-slope').style.display = 'none';
             document.getElementById('download-field').style.display = 'none';
             document.getElementById('edit-vareas-btn').style.display = 'none';
             document.getElementById('layer-toggles').style.display = 'none';
-            document.getElementById('osm-endpoint-info').style.display = 'none';
             clearRetryState();
             showResult('', '');
 
@@ -3503,7 +3609,7 @@ CRUISER 350 FS,Urban,,,,20,50
                     .then(data => {
                         clearRetryState();
                         document.getElementById('loading').style.display = 'none';
-                        document.getElementById('submit-btn').disabled = false;
+                        setSubmitButtonsDisabled(false);
 
                         resultBufferzones = data.bufferzones;
                         resultVareas = data.vareas;
@@ -3532,8 +3638,7 @@ CRUISER 350 FS,Urban,,,,20,50
                         document.getElementById('toggle-va').checked = true;
                         document.getElementById('toggle-slope').checked = true;
 
-                        // Show OSM endpoint info if applicable
-                        displayOsmEndpoints(data, paramsJson);
+
 
                         // Render results on map
                         renderResults(paramsJson);
@@ -3549,7 +3654,7 @@ CRUISER 350 FS,Urban,,,,20,50
                         } else {
                             clearRetryState();
                             document.getElementById('loading').style.display = 'none';
-                            document.getElementById('submit-btn').disabled = false;
+                            setSubmitButtonsDisabled(false);
                             showResult(
                                 'Request failed after ' + attempt + ' attempt(s) over ' +
                                 Math.round(elapsed / 1000) + ' seconds.\n' +
@@ -3565,58 +3670,7 @@ CRUISER 350 FS,Urban,,,,20,50
             makeApiCall(1);
         }
 
-        /* ──────────────────────────────────────────────────
-           10b. OSM ENDPOINT DISPLAY
-           ────────────────────────────────────────────────── */
 
-        function displayOsmEndpoints(data, paramsJson) {
-            const container = document.getElementById('osm-endpoint-info');
-            const listEl = document.getElementById('osm-endpoint-list');
-
-            // Only show if OSM was used (no uploaded vareas and source is osm)
-            if (uploadedVareas || vareaSource === 'custom') {
-                container.style.display = 'none';
-                return;
-            }
-
-            const allEndpoints = (paramsJson['osm-endpoints'] || []);
-            // Check response for endpoint info
-            const usedEndpoint = data['osm-endpoint'] || data['osm_endpoint'] || null;
-            const usedEndpoints = data['osm-endpoints-used'] || data['osm_endpoints_used'] || (usedEndpoint ? [usedEndpoint] : []);
-
-            if (allEndpoints.length === 0) {
-                container.style.display = 'none';
-                return;
-            }
-
-            container.style.display = 'block';
-            let html = '';
-            allEndpoints.forEach(function (ep) {
-                // Extract domain for cleaner display
-                let domain = ep;
-                try { domain = new URL(ep).hostname; } catch (e) { }
-                const isUsed = usedEndpoints.some(function (u) { return ep.indexOf(u) !== -1 || u.indexOf(ep) !== -1; }) ||
-                    (usedEndpoint && ep.indexOf(usedEndpoint) !== -1);
-                if (isUsed) {
-                    html += '<span class="osm-endpoint-badge used" title="' + ep + '">✓ ' + domain + '</span> ';
-                } else {
-                    html += '<span class="osm-endpoint-badge unused" title="' + ep + '">' + domain + '</span> ';
-                }
-            });
-
-            // If no specific endpoint info in response, mark all as "available" and note
-            if (usedEndpoints.length === 0 && !usedEndpoint) {
-                html = '';
-                allEndpoints.forEach(function (ep) {
-                    let domain = ep;
-                    try { domain = new URL(ep).hostname; } catch (e) { }
-                    html += '<span class="osm-endpoint-badge" title="' + ep + '">' + domain + '</span> ';
-                });
-                html += '<br><span style="font-size:10px;color:#666;">OSM data was fetched via one of the above endpoints (round-robin / fallback).</span>';
-            }
-
-            listEl.innerHTML = html;
-        }
 
         /* ──────────────────────────────────────────────────
            11. RENDER RESULTS ON MAP
