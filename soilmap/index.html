@@ -1991,6 +1991,7 @@
     <script>
         // ── Config ──
         const WEBHOOK_URL = 'https://n8n.syngenta.com/webhook/chatsoilmap';
+        const DOWNLOAD_URL = 'https://n8n.syngenta.com/webhook/soilmap-download';
         const SESSION_ID = 'session_' + Math.random().toString(36).slice(2, 11);
         let AUTH_HEADER = '';
 
@@ -3116,29 +3117,38 @@
             return html;
         }
 
-        // ── Download output from S3 via n8n webhook ──
+        // ── Download output from S3 via dedicated download webhook ──
         async function downloadOutput(s3Path) {
             const btn = event.target.closest('.download-output-btn');
-            if (btn) { btn.disabled = true; btn.textContent = '⏳ Requesting…'; }
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Downloading…'; }
 
             try {
-                const response = await authFetch(WEBHOOK_URL, {
+                // Parse s3://bucket/key into bucket and key
+                const s3Match = s3Path.match(/^s3:\/\/([^\/]+)\/(.+)$/);
+                if (!s3Match) throw new Error('Invalid S3 path: ' + s3Path);
+                const buket = s3Match[1];
+                const keyfile = s3Match[2];
+                const fname = keyfile.split('/').pop();
+
+                // Call the dedicated download webhook (returns binary)
+                const response = await authFetch(DOWNLOAD_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ chatInput: 'DOWNLOAD_OUTPUT: ' + s3Path, sessionId: SESSION_ID })
+                    body: JSON.stringify({ buket: buket, keyfile: keyfile })
                 });
-                if (!response.ok) throw new Error('Server responded with status ' + response.status);
-                const data = await response.json();
-                const reply = String(extractReply(data));
 
-                // Try to extract a presigned URL from the reply
-                const urlMatch = reply.match(/https?:\/\/[^\s"'<>]+/);
-                if (urlMatch) {
-                    // Open presigned URL in new tab to trigger download
-                    window.open(urlMatch[0], '_blank');
-                } else {
-                    showValidation('⚠️ Could not get download URL. Response: ' + reply.slice(0, 200), 'error');
-                }
+                if (!response.ok) throw new Error('Server responded with status ' + response.status);
+
+                // Get binary data and trigger browser download
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fname;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
             } catch (err) {
                 showValidation('⚠️ Download failed: ' + err.message, 'error');
             } finally {
