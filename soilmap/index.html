@@ -3124,7 +3124,7 @@
                         if (val && String(val).startsWith('s3://')) {
                             const s3Path = String(val);
                             <!-- const fname = s3Path.split('/').pop(); -->
-                            const fname = "Douwnload";
+                            const fname = "Download";
                             val = '<button class="download-output-btn" onclick="downloadOutput(\'' + s3Path.replace(/'/g, "\\'") + '\')" title="' + s3Path + '">⬇ ' + fname + '</button>';
                         }
                     }
