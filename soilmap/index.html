@@ -3060,7 +3060,11 @@
                     if (!response.ok) throw new Error('Server responded with status ' + response.status);
 
                     const data = await response.json();
-                    const reply = String(extractReply(data));
+                    const rawReply = extractReply(data);
+                    // If reply is already an object/array, stringify for parseJobsToTable
+                    const reply = (typeof rawReply === 'object' && rawReply !== null)
+                        ? JSON.stringify(rawReply)
+                        : String(rawReply);
 
                     const jobsHtml = parseJobsToTable(reply);
                     if (jobsHtml) {
