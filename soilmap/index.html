@@ -2899,6 +2899,121 @@
             return null;
         }
 
+        // ── Extract jobs data from any response shape ──
+        // Searches deeply through the n8n webhook response to find the jobs JSON.
+        // Handles: {output: "..."}, [{output: "..."}], direct object, string with code blocks, etc.
+        function extractJobsData(data) {
+            // Helper: check if an object looks like jobs data (has columnar arrays or is an array of job objects)
+            function looksLikeJobs(obj) {
+                if (!obj || typeof obj !== 'object') return false;
+                if (Array.isArray(obj)) return obj.length > 0 && typeof obj[0] === 'object' && obj[0] !== null;
+                // Columnar: at least one key has an array value
+                return Object.values(obj).some(v => Array.isArray(v));
+            }
+
+            // Helper: try to parse jobs from a string
+            function parseJobsFromString(str) {
+                if (typeof str !== 'string') return null;
+                str = str.trim();
+
+                // Try direct JSON parse
+                try {
+                    const obj = JSON.parse(str);
+                    if (looksLikeJobs(obj)) return obj;
+                } catch (e) { }
+
+                // Try code block extraction: ```json ... ```
+                const cbMatch = str.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+                if (cbMatch) {
+                    try {
+                        const obj = JSON.parse(cbMatch[1]);
+                        if (looksLikeJobs(obj)) return obj;
+                    } catch (e) { }
+                }
+
+                // Try to find embedded JSON object or array
+                const braceStart = str.indexOf('{');
+                const bracketStart = str.indexOf('[');
+                const starts = [];
+                if (braceStart !== -1) starts.push(braceStart);
+                if (bracketStart !== -1) starts.push(bracketStart);
+                starts.sort((a, b) => a - b);
+
+                for (const start of starts) {
+                    const isArray = str[start] === '[';
+                    const end = isArray ? str.lastIndexOf(']') : str.lastIndexOf('}');
+                    if (end > start) {
+                        try {
+                            const obj = JSON.parse(str.substring(start, end + 1));
+                            if (looksLikeJobs(obj)) return obj;
+                        } catch (e) { }
+                    }
+                }
+
+                return null;
+            }
+
+            // If data is a string, parse it directly
+            if (typeof data === 'string') return parseJobsFromString(data);
+
+            // If data is already jobs-like, return it
+            if (looksLikeJobs(data)) return data;
+
+            // If it's an array, check first item
+            if (Array.isArray(data) && data.length > 0) {
+                const item = data[0];
+                if (looksLikeJobs(item)) return item;
+                // Check item.output
+                if (item && item.output) {
+                    const fromOutput = typeof item.output === 'string'
+                        ? parseJobsFromString(item.output)
+                        : (looksLikeJobs(item.output) ? item.output : null);
+                    if (fromOutput) return fromOutput;
+                }
+                // Check item.text
+                if (item && typeof item.text === 'string') {
+                    const fromText = parseJobsFromString(item.text);
+                    if (fromText) return fromText;
+                }
+            }
+
+            // Check data.output
+            if (data && data.output) {
+                const fromOutput = typeof data.output === 'string'
+                    ? parseJobsFromString(data.output)
+                    : (looksLikeJobs(data.output) ? data.output : null);
+                if (fromOutput) return fromOutput;
+            }
+
+            // Check data.text
+            if (data && typeof data.text === 'string') {
+                const fromText = parseJobsFromString(data.text);
+                if (fromText) return fromText;
+            }
+
+            // Check data.data.output
+            if (data && data.data && data.data.output) {
+                const fromOutput = typeof data.data.output === 'string'
+                    ? parseJobsFromString(data.data.output)
+                    : (looksLikeJobs(data.data.output) ? data.data.output : null);
+                if (fromOutput) return fromOutput;
+            }
+
+            // Check data.message
+            if (data && typeof data.message === 'string') {
+                const fromMsg = parseJobsFromString(data.message);
+                if (fromMsg) return fromMsg;
+            }
+
+            // Last resort: stringify everything and search
+            try {
+                const fullStr = JSON.stringify(data);
+                return parseJobsFromString(fullStr);
+            } catch (e) { }
+
+            return null;
+        }
+
         // ── Parse jobs JSON into table HTML ──
         // Handles both:
         //   - Array of row objects: [{user:'a', status:'success'}, ...]
@@ -3072,17 +3187,19 @@
                     if (!response.ok) throw new Error('Server responded with status ' + response.status);
 
                     const data = await response.json();
-                    const rawReply = extractReply(data);
-                    console.log('[check-jobs] rawReply type:', typeof rawReply, '| value:', rawReply);
+                    console.log('[check-jobs] raw response data:', JSON.stringify(data).slice(0, 500));
 
-                    // parseJobsToTable now accepts both strings and objects directly
-                    const jobsHtml = parseJobsToTable(rawReply);
+                    // Extract the jobs JSON from all possible response shapes
+                    const jobsData = extractJobsData(data);
+                    console.log('[check-jobs] extracted jobsData:', jobsData);
+
+                    const jobsHtml = parseJobsToTable(jobsData);
                     if (jobsHtml) {
                         resultsContent.innerHTML = jobsHtml;
                     } else {
-                        const displayText = (typeof rawReply === 'object' && rawReply !== null)
-                            ? JSON.stringify(rawReply, null, 2)
-                            : String(rawReply);
+                        const displayText = (typeof jobsData === 'object' && jobsData !== null)
+                            ? JSON.stringify(jobsData, null, 2)
+                            : String(jobsData || 'No job data returned.');
                         resultsContent.innerHTML = '<pre style="color:var(--text-secondary);font-size:12px;white-space:pre-wrap;word-break:break-word;">' + displayText + '</pre>';
                     }
                     resultsArea.style.display = 'block';
