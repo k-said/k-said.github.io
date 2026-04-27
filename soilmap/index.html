@@ -3123,7 +3123,8 @@
                     } else if (key === 'output') {
                         if (val && String(val).startsWith('s3://')) {
                             const s3Path = String(val);
-                            const fname = s3Path.split('/').pop();
+                            <!-- const fname = s3Path.split('/').pop(); -->
+                            const fname = "Douwnload";
                             val = '<button class="download-output-btn" onclick="downloadOutput(\'' + s3Path.replace(/'/g, "\\'") + '\')" title="' + s3Path + '">⬇ ' + fname + '</button>';
                         }
                     }
