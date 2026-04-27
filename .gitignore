@@ -1,0 +1,5 @@
+*.json
+*n8n*
+*.py
+*.ipynb
+*ai_agent*

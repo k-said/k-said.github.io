@@ -1,0 +1,4063 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Task Management Assistant</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        /* ── Reset & Base ── */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --syngenta-green: #00843D;
+            --syngenta-dark: #005228;
+            --syngenta-light: #E8F5EE;
+            --syngenta-accent: #7DC242;
+            --bg: #F4F6F8;
+            --surface: #FFFFFF;
+            --text-primary: #1A1A2E;
+            --text-secondary: #6B7280;
+            --border: #E5E7EB;
+            --shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+            --radius: 16px;
+            --radius-sm: 8px;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        /* ── Main Layout ── */
+        .app-layout {
+            width: 100%;
+            max-width: 1400px;
+            height: 90vh;
+            max-height: 860px;
+            display: flex;
+            gap: 16px;
+        }
+
+        /* ── Shell ── */
+        .chat-shell {
+            width: 50%;
+            min-width: 380px;
+            background: var(--surface);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ── Map Panel ── */
+        .map-panel {
+            flex: 1;
+            background: var(--surface);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .map-header {
+            background: linear-gradient(135deg, var(--syngenta-dark) 0%, var(--syngenta-green) 100%);
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+
+        .map-header h2 {
+            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .map-controls {
+            padding: 10px 16px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            background: var(--syngenta-light);
+            flex-shrink: 0;
+            flex-wrap: wrap;
+        }
+
+        .map-controls label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--syngenta-dark);
+        }
+
+        .map-controls select {
+            padding: 5px 10px;
+            border: 1.5px solid var(--syngenta-green);
+            border-radius: 6px;
+            font-size: 12px;
+            background: #fff;
+            color: var(--text-primary);
+            outline: none;
+        }
+
+        .map-controls select:focus {
+            box-shadow: 0 0 0 3px rgba(0, 132, 61, 0.15);
+        }
+
+        .map-controls .clear-btn {
+            background: none;
+            border: 1.5px solid #e74c3c;
+            color: #e74c3c;
+            border-radius: 6px;
+            padding: 5px 12px;
+            font-size: 12px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .map-controls .clear-btn:hover {
+            background: #e74c3c;
+            color: #fff;
+        }
+
+        #map {
+            flex: 1;
+        }
+
+        .map-legend {
+            padding: 10px 16px;
+            border-top: 1px solid var(--border);
+            font-size: 11px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+            background: #fafafa;
+        }
+
+        .legend-gradient {
+            width: 120px;
+            height: 12px;
+            border-radius: 3px;
+            background: linear-gradient(to right, #2ecc71, #f1c40f, #e74c3c);
+        }
+
+        .legend-labels {
+            display: flex;
+            justify-content: space-between;
+            width: 120px;
+            font-size: 10px;
+        }
+
+        /* ── Job Table ── */
+        .job-table-wrap {
+            max-height: 220px;
+            overflow-y: auto;
+            margin-top: 8px;
+        }
+
+        .job-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        .job-table th {
+            background: var(--syngenta-green);
+            color: #fff;
+            padding: 8px 10px;
+            text-align: left;
+            position: sticky;
+            top: 0;
+        }
+
+        .job-table td {
+            padding: 7px 10px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .job-table tr:hover td {
+            background: var(--syngenta-light);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .status-badge.completed,
+        .status-badge.success {
+            background: #d5f5e3;
+            color: #1e8449;
+        }
+
+        .status-badge.running {
+            background: #fef9e7;
+            color: #b7950b;
+        }
+
+        .status-badge.queued {
+            background: #ebf5fb;
+            color: #2e86c1;
+        }
+
+        .status-badge.failed {
+            background: #fadbd8;
+            color: #c0392b;
+        }
+
+        .download-output-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: var(--syngenta-green);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 3px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+
+        .download-output-btn:hover {
+            background: var(--syngenta-dark);
+        }
+
+        .download-output-btn:disabled {
+            background: #aaa;
+            cursor: not-allowed;
+        }
+
+        .job-table .last-updated-row {
+            background: #f8f9fa;
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        /* ── Header ── */
+        .chat-header {
+            background: linear-gradient(135deg, var(--syngenta-dark) 0%, var(--syngenta-green) 100%);
+            padding: 18px 24px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-shrink: 0;
+        }
+
+        .header-avatar {
+            width: 44px;
+            height: 44px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            flex-shrink: 0;
+        }
+
+        .header-info h1 {
+            color: #fff;
+            font-size: 17px;
+            font-weight: 600;
+            letter-spacing: 0.2px;
+        }
+
+        .header-info p {
+            color: rgba(255, 255, 255, 0.75);
+            font-size: 12px;
+            margin-top: 2px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--syngenta-accent);
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.4;
+            }
+        }
+
+        /* ── Quick Actions ── */
+        .quick-actions {
+            padding: 12px 20px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            border-bottom: 1px solid var(--border);
+            background: var(--syngenta-light);
+            flex-shrink: 0;
+        }
+
+        .quick-btn {
+            background: #fff;
+            border: 1.5px solid var(--syngenta-green);
+            color: var(--syngenta-dark);
+            border-radius: 20px;
+            padding: 5px 13px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            white-space: nowrap;
+        }
+
+        .quick-btn:hover {
+            background: var(--syngenta-green);
+            color: #fff;
+            transform: translateY(-1px);
+        }
+
+        /* ── Messages ── */
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            scroll-behavior: smooth;
+        }
+
+        .chat-messages::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+
+        /* ── Message Bubbles ── */
+        .message {
+            display: flex;
+            gap: 10px;
+            max-width: 85%;
+            animation: fadeUp 0.25s ease;
+        }
+
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+
+        .message.agent {
+            align-self: flex-start;
+        }
+
+        .msg-avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .message.agent .msg-avatar {
+            background: var(--syngenta-light);
+            border: 1.5px solid var(--syngenta-green);
+        }
+
+        .message.user .msg-avatar {
+            background: var(--syngenta-green);
+            color: #fff;
+        }
+
+        .msg-bubble {
+            padding: 12px 16px;
+            border-radius: var(--radius);
+            font-size: 14px;
+            line-height: 1.6;
+            word-break: break-word;
+        }
+
+        .message.agent .msg-bubble {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-bottom-left-radius: 4px;
+            color: var(--text-primary);
+        }
+
+        .message.user .msg-bubble {
+            background: linear-gradient(135deg, var(--syngenta-green), var(--syngenta-dark));
+            color: #fff;
+            border-bottom-right-radius: 4px;
+        }
+
+        .msg-time {
+            font-size: 10px;
+            color: var(--text-secondary);
+            margin-top: 5px;
+            text-align: right;
+        }
+
+        .message.agent .msg-time {
+            text-align: left;
+        }
+
+        /* ── Typing Indicator ── */
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            align-self: flex-start;
+            animation: fadeUp 0.25s ease;
+        }
+
+        .typing-dots {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            border-bottom-left-radius: 4px;
+            padding: 12px 18px;
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+
+        .typing-dots span {
+            width: 7px;
+            height: 7px;
+            background: var(--syngenta-green);
+            border-radius: 50%;
+            animation: bounce 1.2s infinite;
+        }
+
+        .typing-dots span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-dots span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            60%,
+            100% {
+                transform: translateY(0);
+            }
+
+            30% {
+                transform: translateY(-6px);
+            }
+        }
+
+        /* ── Welcome Card ── */
+        .welcome-card {
+            background: var(--syngenta-light);
+            border: 1.5px solid var(--syngenta-green);
+            border-radius: var(--radius);
+            padding: 20px;
+            text-align: center;
+            margin: auto;
+            max-width: 420px;
+        }
+
+        .welcome-card .icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+
+        .welcome-card h2 {
+            color: var(--syngenta-dark);
+            font-size: 18px;
+            margin-bottom: 8px;
+        }
+
+        .welcome-card p {
+            color: var(--text-secondary);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        /* ── Input Area ── */
+        .chat-input-area {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border);
+            background: var(--surface);
+            flex-shrink: 0;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .input-wrapper {
+            flex: 1;
+            background: var(--bg);
+            border: 1.5px solid var(--border);
+            border-radius: 24px;
+            padding: 10px 18px;
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+            transition: border-color 0.2s;
+        }
+
+        .input-wrapper:focus-within {
+            border-color: var(--syngenta-green);
+            box-shadow: 0 0 0 3px rgba(0, 132, 61, 0.1);
+        }
+
+        .attach-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            color: var(--text-secondary);
+            padding: 2px;
+            transition: color 0.2s;
+            flex-shrink: 0;
+        }
+
+        .attach-btn:hover {
+            color: var(--syngenta-green);
+        }
+
+        #messageInput {
+            flex: 1;
+            border: none;
+            background: transparent;
+            font-size: 14px;
+            color: var(--text-primary);
+            resize: none;
+            outline: none;
+            max-height: 120px;
+            min-height: 22px;
+            line-height: 1.5;
+            font-family: inherit;
+        }
+
+        #messageInput::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .send-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--syngenta-green), var(--syngenta-dark));
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .send-btn:hover {
+            transform: scale(1.08);
+            box-shadow: 0 4px 12px rgba(0, 132, 61, 0.35);
+        }
+
+        .send-btn:active {
+            transform: scale(0.96);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .send-btn svg {
+            fill: #fff;
+            width: 20px;
+            height: 20px;
+        }
+
+        .input-hint {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 6px;
+            text-align: center;
+        }
+
+        /* ── File info ── */
+        .file-info {
+            font-size: 11px;
+            color: var(--syngenta-green);
+            margin-top: 4px;
+            padding: 0 18px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .file-info .remove-file {
+            cursor: pointer;
+            color: #e74c3c;
+            font-weight: 700;
+        }
+
+        /* ── Error Toast ── */
+        .error-toast {
+            background: #FEE2E2;
+            border: 1px solid #FCA5A5;
+            color: #B91C1C;
+            border-radius: var(--radius-sm);
+            padding: 10px 14px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            animation: fadeUp 0.25s ease;
+        }
+
+        /* ── Markdown ── */
+        .msg-bubble strong {
+            font-weight: 600;
+        }
+
+        .msg-bubble em {
+            font-style: italic;
+        }
+
+        .msg-bubble code {
+            background: rgba(0, 0, 0, 0.07);
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .message.user .msg-bubble code {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .msg-bubble ul,
+        .msg-bubble ol {
+            padding-left: 18px;
+            margin: 6px 0;
+        }
+
+        .msg-bubble li {
+            margin: 3px 0;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 900px) {
+            .app-layout {
+                flex-direction: column;
+                height: auto;
+                max-height: none;
+            }
+
+            .chat-shell {
+                width: 100%;
+                min-width: unset;
+                height: 60vh;
+            }
+
+            .map-panel {
+                height: 50vh;
+            }
+        }
+
+        @media (max-width: 500px) {
+            body {
+                padding: 0;
+            }
+
+            .app-layout {
+                border-radius: 0;
+                gap: 0;
+            }
+
+            .chat-shell,
+            .map-panel {
+                border-radius: 0;
+            }
+
+            .message {
+                max-width: 92%;
+            }
+
+            .quick-actions {
+                display: none;
+            }
+        }
+
+        /* ── Form Styles ── */
+        .form-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .form-label .required {
+            color: #e74c3c;
+            font-size: 12px;
+        }
+
+        .form-label .optional {
+            font-weight: 400;
+            color: var(--text-secondary);
+            font-size: 11px;
+        }
+
+        .form-control {
+            padding: 10px 14px;
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            font-family: inherit;
+            color: var(--text-primary);
+            background: var(--bg);
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            width: 100%;
+        }
+
+        .form-control:focus {
+            border-color: var(--syngenta-green);
+            box-shadow: 0 0 0 3px rgba(0, 132, 61, 0.1);
+        }
+
+        .form-control.invalid {
+            border-color: #e74c3c;
+            box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.1);
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 60px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+
+        .file-upload-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 6px;
+        }
+
+        .upload-btn {
+            background: #fff;
+            border: 1.5px solid var(--syngenta-green);
+            color: var(--syngenta-dark);
+            border-radius: 6px;
+            padding: 6px 14px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.18s ease;
+        }
+
+        .upload-btn:hover {
+            background: var(--syngenta-green);
+            color: #fff;
+        }
+
+        .file-name-label {
+            font-size: 12px;
+            color: var(--syngenta-green);
+            font-weight: 500;
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 13px;
+            background: linear-gradient(135deg, var(--syngenta-green), var(--syngenta-dark));
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 4px;
+        }
+
+        .submit-btn:hover {
+            box-shadow: 0 4px 16px rgba(0, 132, 61, 0.35);
+            transform: translateY(-1px);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .validation-msg {
+            padding: 10px 14px;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .validation-msg.error {
+            background: #FEE2E2;
+            border: 1px solid #FCA5A5;
+            color: #B91C1C;
+        }
+
+        .validation-msg.success {
+            background: #d5f5e3;
+            border: 1px solid #82e0aa;
+            color: #1e8449;
+        }
+
+        .results-header {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--syngenta-dark);
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 2px solid var(--syngenta-green);
+        }
+
+        .form-divider {
+            border: none;
+            border-top: 1px solid var(--border);
+            margin: 4px 0;
+        }
+
+        /* ── Sample Upload & Verification ── */
+        .sample-upload-zone {
+            border: 2px dashed var(--syngenta-green);
+            border-radius: var(--radius-sm);
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: var(--syngenta-light);
+        }
+
+        .sample-upload-zone:hover {
+            background: #d4edda;
+            border-color: var(--syngenta-dark);
+        }
+
+        .sample-upload-zone .upload-icon {
+            font-size: 28px;
+            margin-bottom: 6px;
+        }
+
+        .sample-upload-zone p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .sample-upload-zone .formats {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .sample-preview-wrap {
+            max-height: 200px;
+            overflow: auto;
+            margin-top: 10px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+        }
+
+        .sample-preview-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+
+        .sample-preview-table th {
+            background: var(--syngenta-green);
+            color: #fff;
+            padding: 6px 8px;
+            text-align: left;
+            position: sticky;
+            top: 0;
+            white-space: nowrap;
+        }
+
+        .sample-preview-table td {
+            padding: 5px 8px;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+
+        .sample-preview-table tr:hover td {
+            background: var(--syngenta-light);
+        }
+
+        .verify-btn {
+            width: 100%;
+            padding: 11px;
+            background: #fff;
+            color: var(--syngenta-dark);
+            border: 2px solid var(--syngenta-green);
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 8px;
+        }
+
+        .verify-btn:hover {
+            background: var(--syngenta-green);
+            color: #fff;
+        }
+
+        .verify-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .verification-panel {
+            margin-top: 10px;
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+        }
+
+        .verification-panel .vp-header {
+            padding: 10px 14px;
+            font-weight: 600;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .verification-panel .vp-header.success {
+            background: #d5f5e3;
+            color: #1e8449;
+        }
+
+        .verification-panel .vp-header.error {
+            background: #FEE2E2;
+            color: #B91C1C;
+        }
+
+        .verification-panel .vp-header.warning {
+            background: #FEF9E7;
+            color: #B7950B;
+        }
+
+        .verification-panel .vp-body {
+            padding: 10px 14px;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .verification-panel .vp-body ul {
+            padding-left: 18px;
+            margin: 4px 0;
+        }
+
+        .verification-panel .vp-body li {
+            margin: 3px 0;
+        }
+
+        /* ── Boundary Upload Zone ── */
+        .boundary-upload-zone {
+            border: 2px dashed var(--syngenta-green);
+            border-radius: var(--radius-sm);
+            padding: 18px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: var(--syngenta-light);
+        }
+
+        .boundary-upload-zone:hover {
+            background: #d4edda;
+            border-color: var(--syngenta-dark);
+        }
+
+        .boundary-upload-zone .upload-icon {
+            font-size: 26px;
+            margin-bottom: 4px;
+        }
+
+        .boundary-upload-zone .formats {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .boundary-file-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--syngenta-green);
+            font-weight: 500;
+        }
+
+        .boundary-file-info .remove-boundary-file {
+            cursor: pointer;
+            color: #e74c3c;
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        .field-selector {
+            margin-top: 8px;
+            padding: 10px 12px;
+            background: var(--syngenta-light);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+        }
+
+        .field-selector label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .field-radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .field-radio-group label {
+            font-size: 12px;
+            font-weight: 400;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .field-radio-group input[type="radio"] {
+            accent-color: var(--syngenta-green);
+        }
+
+        .fieldname-edit {
+            margin-top: 10px;
+        }
+
+        .fieldname-edit label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .fieldname-edit input {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1.5px solid var(--border);
+            border-radius: 6px;
+            font-size: 13px;
+            background: #fff;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .fieldname-edit input:focus {
+            border-color: var(--syngenta-green);
+            box-shadow: 0 0 0 3px rgba(0.132, 61, 0.1);
+        }
+
+        .sample-file-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--syngenta-green);
+            font-weight: 500;
+        }
+
+        .sample-file-info .remove-sample-file {
+            cursor: pointer;
+            color: #e74c3c;
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        /* ── Editable Sample Table ── */
+        .sample-toolbar {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+
+        .sample-toolbar .tbtn {
+            background: #fff;
+            border: 1.5px solid var(--syngenta-green);
+            color: var(--syngenta-dark);
+            border-radius: 6px;
+            padding: 5px 12px;
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+
+        .sample-toolbar .tbtn:hover {
+            background: var(--syngenta-green);
+            color: #fff;
+        }
+
+        .editable-wrap {
+            max-height: 500px;
+            overflow: auto;
+            margin-top: 6px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+        }
+
+        .editable-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+
+        .editable-table th {
+            background: var(--syngenta-green);
+            color: #fff;
+            padding: 6px 8px;
+            text-align: left;
+            position: sticky;
+            top: 0;
+            white-space: nowrap;
+            z-index: 2;
+        }
+
+        .editable-table th .del-col {
+            margin-left: 6px;
+            cursor: pointer;
+            opacity: 0.7;
+            font-size: 12px;
+        }
+
+        .editable-table th .del-col:hover {
+            opacity: 1;
+        }
+
+        .editable-table td {
+            padding: 4px 6px;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+            min-width: 50px;
+        }
+
+        .editable-table td[contenteditable] {
+            outline: none;
+            cursor: text;
+        }
+
+        .editable-table td[contenteditable]:focus {
+            background: #fffde7;
+            box-shadow: inset 0 0 0 1.5px var(--syngenta-accent);
+        }
+
+        .editable-table td.row-actions {
+            text-align: center;
+            padding: 2px 4px;
+        }
+
+        .editable-table .del-row {
+            cursor: pointer;
+            color: #e74c3c;
+            font-weight: 700;
+            font-size: 13px;
+            opacity: 0.6;
+        }
+
+        .editable-table .del-row:hover {
+            opacity: 1;
+        }
+
+        .editable-table tr:hover td {
+            background: var(--syngenta-light);
+        }
+
+        .accept-bar {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+            align-items: center;
+        }
+
+        .accept-bar .abtn {
+            flex: 1;
+            padding: 9px;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 2px solid;
+            transition: all 0.15s;
+            text-align: center;
+        }
+
+        .accept-bar .abtn.accept {
+            border-color: var(--syngenta-green);
+            background: var(--syngenta-light);
+            color: var(--syngenta-dark);
+        }
+
+        .accept-bar .abtn.accept:hover {
+            background: var(--syngenta-green);
+            color: #fff;
+        }
+
+        .accept-bar .abtn.refuse {
+            border-color: #e74c3c;
+            background: #fff;
+            color: #e74c3c;
+        }
+
+        .accept-bar .abtn.refuse:hover {
+            background: #e74c3c;
+            color: #fff;
+        }
+
+        .row-count-info {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-left: auto;
+        }
+
+        .interp-toggle {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--syngenta-dark);
+            cursor: pointer;
+        }
+
+        .interp-toggle input {
+            accent-color: var(--syngenta-green);
+            cursor: pointer;
+        }
+
+        /* ── Parameter Tabs & Sections ── */
+        .param-tabs {
+            display: flex;
+            gap: 0;
+            border-bottom: 2px solid var(--border);
+            margin-bottom: 10px;
+        }
+
+        .param-tab {
+            padding: 7px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            border: none;
+            background: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.15s;
+        }
+
+        .param-tab.active {
+            color: var(--syngenta-green);
+            border-bottom-color: var(--syngenta-green);
+        }
+
+        .param-tab:hover {
+            color: var(--syngenta-dark);
+        }
+
+        .param-section {
+            margin-bottom: 10px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+        }
+
+        .param-section summary {
+            padding: 10px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            background: var(--syngenta-light);
+            color: var(--syngenta-dark);
+            list-style: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            user-select: none;
+        }
+
+        .param-section summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .param-section summary::before {
+            content: '▶';
+            font-size: 10px;
+            transition: transform 0.2s;
+        }
+
+        .param-section[open] summary::before {
+            transform: rotate(90deg);
+        }
+
+        .param-section .param-fields {
+            padding: 12px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .param-field {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .param-field label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .param-field .param-hint {
+            font-size: 10px;
+            color: var(--text-secondary);
+        }
+
+        .param-field input[type="number"] {
+            padding: 7px 10px;
+            border: 1.5px solid var(--border);
+            border-radius: 6px;
+            font-size: 13px;
+            background: var(--bg);
+            outline: none;
+            width: 100%;
+            max-width: 200px;
+        }
+
+        .param-field input[type="number"]:focus {
+            border-color: var(--syngenta-green);
+            box-shadow: 0 0 0 2px rgba(0, 132, 61, 0.1);
+        }
+
+        .param-field textarea {
+            padding: 7px 10px;
+            border: 1.5px solid var(--border);
+            border-radius: 6px;
+            font-size: 11px;
+            font-family: 'Courier New', monospace;
+            background: var(--bg);
+            outline: none;
+            resize: vertical;
+            min-height: 50px;
+            width: 100%;
+        }
+
+        .param-field textarea:focus {
+            border-color: var(--syngenta-green);
+            box-shadow: 0 0 0 2px rgba(0, 132, 61, 0.1);
+        }
+
+        .param-file-upload {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 6px;
+        }
+
+        .param-file-name {
+            font-size: 12px;
+            color: var(--syngenta-green);
+            font-weight: 500;
+        }
+
+        .param-reset-btn {
+            background: none;
+            border: 1.5px solid var(--text-secondary);
+            color: var(--text-secondary);
+            border-radius: 6px;
+            padding: 5px 12px;
+            font-size: 11px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .param-reset-btn:hover {
+            border-color: var(--syngenta-green);
+            color: var(--syngenta-green);
+        }
+
+        /* ── Login Overlay ── */
+        .login-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(6px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-overlay.hidden {
+            display: none;
+        }
+
+        .login-card {
+            background: var(--surface);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 36px 32px;
+            width: 100%;
+            max-width: 380px;
+            text-align: center;
+        }
+
+        .login-card .login-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+
+        .login-card h2 {
+            color: var(--syngenta-dark);
+            font-size: 20px;
+            margin-bottom: 4px;
+        }
+
+        .login-card p {
+            color: var(--text-secondary);
+            font-size: 13px;
+            margin-bottom: 20px;
+        }
+
+        .login-card .form-group {
+            margin-bottom: 14px;
+            text-align: left;
+        }
+
+        .login-card .form-group label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .login-card .form-group input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            background: var(--bg);
+            outline: none;
+            font-family: inherit;
+        }
+
+        .login-card .form-group input:focus {
+            border-color: var(--syngenta-green);
+            box-shadow: 0 0 0 3px rgba(0, 132, 61, 0.1);
+        }
+
+        .login-card .login-btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: var(--radius-sm);
+            background: linear-gradient(135deg, var(--syngenta-green), var(--syngenta-dark));
+            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 6px;
+        }
+
+        .login-card .login-btn:hover {
+            box-shadow: 0 4px 16px rgba(0, 132, 61, 0.35);
+            transform: translateY(-1px);
+        }
+
+        .login-error {
+            color: #B91C1C;
+            font-size: 12px;
+            margin-top: 8px;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Login Overlay -->
+    <div class="login-overlay" id="loginOverlay">
+        <div class="login-card">
+            <div class="login-icon">🌱</div>
+            <h2>Syngenta Soil Mapping</h2>
+            <p>Sign in with your credentials to continue</p>
+            <div class="form-group">
+                <label for="loginUser">Username</label>
+                <input type="text" id="loginUser" placeholder="Enter username" autocomplete="username">
+            </div>
+            <div class="form-group">
+                <label for="loginPass">Password</label>
+                <input type="password" id="loginPass" placeholder="Enter password" autocomplete="current-password">
+            </div>
+            <button type="button" class="login-btn" id="loginBtn" onclick="doLogin()">Sign In</button>
+            <div class="login-error" id="loginError">Invalid username or password.</div>
+        </div>
+    </div>
+
+    <div class="app-layout" id="appLayout" style="display:none;">
+
+        <!-- Chat Panel -->
+        <div class="chat-shell">
+
+            <!-- Header -->
+            <div class="chat-header">
+                <div class="header-avatar">🌱</div>
+                <div class="header-info">
+                    <h1>Task Management Assistant</h1>
+                    <p><span class="status-dot"></span>Powered by Syngenta AI · GPT-4o</p>
+                </div>
+            </div>
+
+            <!-- Task Form -->
+            <div class="form-container" id="formContainer">
+
+                <div class="form-group">
+                    <label class="form-label" for="taskType">Task Type <span class="required">*</span></label>
+                    <select id="taskType" class="form-control" onchange="onTaskTypeChange()">
+                        <option value="">— Select a Task —</option>
+                        <option value="guided-sampling">🧭 Guided Sampling</option>
+                        <option value="soil-mapping">🗺️ Soil Mapping</option>
+                        <option value="check-jobs">📊 Check Job Status</option>
+                    </select>
+                </div>
+
+                <div id="taskFields" style="display:none;">
+                    <hr class="form-divider">
+
+                    <div class="form-group" style="margin-top:12px;">
+                        <label class="form-label" for="userEmail">User Email <span class="required">*</span></label>
+                        <input type="email" id="userEmail" class="form-control" placeholder="user@syngenta.com">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">
+                            Field Boundary <span class="required">*</span>
+                            <span class="optional">— Upload GeoJSON, JSON, KML, KMZ, GML, or Shapefile (.zip)</span>
+                        </label>
+                        <div class="boundary-upload-zone" id="boundaryDropZone"
+                            onclick="document.getElementById('boundaryFileInput').click()">
+                            <div class="upload-icon">🗺️</div>
+                            <div><strong>Click to upload</strong> or drag &amp; drop</div>
+                            <p class="formats">Supported: .json, .geojson, .kml, .kmz, .gml, .zip (Shapefile), or select
+                                .shp + .dbf +
+                                .shx files</p>
+                        </div>
+                        <input type="file" id="boundaryFileInput"
+                            accept=".json,.geojson,.zip,.shp,.dbf,.shx,.prj,.kml,.kmz,.gml" style="display:none"
+                            onchange="handleBoundaryUpload(event)" multiple>
+                        <div id="boundaryFileInfo" class="boundary-file-info" style="display:none;">
+                            <span id="boundaryFileName"></span>
+                            <span class="remove-boundary-file" onclick="removeBoundaryFile()">✕</span>
+                        </div>
+
+                        <!-- Hidden textarea to keep validated boundary JSON -->
+                        <textarea id="boundaryInput" style="display:none;"></textarea>
+
+                        <button type="button" class="verify-btn" id="verifyBoundaryBtn" style="display:none;"
+                            onclick="verifyBoundary()">
+                            🔄 Re-verify Boundary
+                        </button>
+
+                        <div id="boundaryVerificationPanel" style="display:none;"></div>
+                    </div>
+
+                    <div class="form-group" id="fieldNameGroup" style="display:none;">
+                        <label class="form-label" for="fieldName">Field Name <span class="required">*</span>
+                            <span class="optional">— Auto-populated from boundary, editable</span>
+                        </label>
+                        <input type="text" id="fieldName" class="form-control" placeholder="e.g., FarmName FieldName">
+                    </div>
+
+                    <div id="soilSamplesGroup" style="display:none;">
+                        <div class="form-group">
+                            <label class="form-label">
+                                Soil Samples <span class="required">*</span>
+                                <span class="optional">— Upload any file with soil data</span>
+                            </label>
+                            <div class="sample-upload-zone" id="sampleDropZone"
+                                onclick="document.getElementById('sampleFileInput').click()">
+                                <div class="upload-icon">📄</div>
+                                <div><strong>Click to upload</strong> or drag &amp; drop</div>
+                                <p class="formats">Supported: .csv, .xlsx, .xls, .pdf, .json, .geojson, .txt, .doc,
+                                    .docx &amp; more</p>
+                            </div>
+                            <input type="file" id="sampleFileInput"
+                                accept=".pdf,.xlsx,.xls,.csv,.json,.geojson,.txt,.doc,.docx,.tsv,.ods"
+                                style="display:none" onchange="handleSampleFile(event)">
+                            <div id="sampleFileInfo" class="sample-file-info" style="display:none;">
+                                <span id="sampleFileName"></span>
+                                <span class="remove-sample-file" onclick="removeSampleFile()">✕</span>
+                            </div>
+                            <div id="samplePreview" style="display:none;"></div>
+                        </div>
+
+                        <textarea id="soilSamples" style="display:none;"></textarea>
+
+                        <button type="button" class="verify-btn" id="verifyBtn" style="display:none;"
+                            onclick="verifySamples()">
+                            � Re-verify Samples
+                        </button>
+
+                        <div id="verificationPanel" style="display:none;"></div>
+                    </div>
+
+                    <!-- Parameters Section -->
+                    <div id="paramsSection" style="margin-top:12px;">
+                        <label class="form-label">Parameters</label>
+                        <div class="param-source-toggle" style="display:flex;gap:16px;margin-bottom:10px;">
+                            <label
+                                style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;cursor:pointer;">
+                                <input type="radio" name="paramSource" value="server" checked
+                                    onchange="onParamSourceChange()" style="accent-color:var(--syngenta-green);">
+                                ⚙️ Use Server Defaults
+                            </label>
+                            <label
+                                style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;cursor:pointer;">
+                                <input type="radio" name="paramSource" value="custom" onchange="onParamSourceChange()"
+                                    style="accent-color:var(--syngenta-green);">
+                                ✏️ Enter Your Parameters
+                            </label>
+                        </div>
+
+                        <div id="customParamsContainer" style="display:none;">
+                            <div class="param-tabs">
+                                <button type="button" class="param-tab active" onclick="switchParamMode('form',this)">📝
+                                    Form</button>
+                                <button type="button" class="param-tab" onclick="switchParamMode('json',this)">📋 Paste
+                                    JSON</button>
+                                <button type="button" class="param-tab" onclick="switchParamMode('file',this)">📎 Upload
+                                    File</button>
+                            </div>
+
+                            <!-- FORM MODE -->
+                            <div id="paramFormMode">
+                                <!-- Soil Mapping params -->
+                                <div id="smParamsForm" style="display:none;">
+                                    <details class="param-section" open>
+                                        <summary>⚙️ Parameters</summary>
+                                        <div class="param-fields">
+                                            <div class="param-field">
+                                                <label>sat-soil-ray</label>
+                                                <span class="param-hint">Spatial resolution per satellite
+                                                    (meters)</span>
+                                                <textarea id="sm_sat_soil_ray"
+                                                    rows="2">{"S2": 15, "S1": 15, "Planet": 5, "Alos": 30, "DEM": 15}</textarea>
+                                            </div>
+                                            <div class="param-field">
+                                                <label>diff-2-samples-max-percent</label>
+                                                <span class="param-hint">Tolerance to predicted value range (%)</span>
+                                                <input type="number" id="sm_diff_2_samples" value="10" step="1" min="0">
+                                            </div>
+                                        </div>
+                                    </details>
+                                    <details class="param-section">
+                                        <summary>🔧 Advanced Parameters</summary>
+                                        <div class="param-fields">
+                                            <div class="param-field">
+                                                <label>seasons-and-sats</label>
+                                                <textarea id="sm_seasons_and_sats"
+                                                    rows="3">{"off-season": ["S2", "S1", "Landsat"], "on-season": ["S2"], "growing-season": ["S2"]}</textarea>
+                                            </div>
+                                            <div class="param-field">
+                                                <label>sat-ref</label>
+                                                <input type="text" id="sm_sat_ref" value="S2"
+                                                    style="padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);outline:none;max-width:200px;">
+                                            </div>
+                                            <div class="param-field">
+                                                <label>sat-date</label>
+                                                <textarea id="sm_sat_date"
+                                                    rows="4">{"default": {"S2": ["2017-01-01", "2030-12-10"], "S1": ["2017-01-01", "2030-12-10"], "Landsat": ["2017-01-01", "2030-12-10"], "Planet": ["2017-01-01", "2030-01-01"], "Alos": ["2020-01-01", "2023-10-30"], "Alpha": ["2030-01-01", "2030-10-30"]}}</textarea>
+                                            </div>
+                                            <div class="param-field">
+                                                <label>at-ndvi-field-range</label>
+                                                <textarea id="sm_ndvi_field_range"
+                                                    rows="3">{"off-season": [[[0.1, 0.3, 25], [0.1, 0.35, 25], [0.1, 0.4]]], "on-season": [[[0.7, 1]]], "growing-season": [[[0.4, 0.8]]]}</textarea>
+                                            </div>
+                                            <div class="param-field">
+                                                <label>sat-ndvi-pixel-range</label>
+                                                <textarea id="sm_ndvi_pixel_range"
+                                                    rows="2">{"off-season": [[0.1, 0.3]], "on-season": [[0.5, 1]], "growing-season": [[0.1, 1]]}</textarea>
+                                            </div>
+                                            <div class="param-field">
+                                                <label>sat-ndvi-trend</label>
+                                                <textarea id="sm_ndvi_trend"
+                                                    rows="1">{"growing-season": [0.01, 2]}</textarea>
+                                            </div>
+                                            <div class="param-field">
+                                                <label>sat-bands</label>
+                                                <textarea id="sm_sat_bands"
+                                                    rows="4">{"default": {"S2": ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B11", "B12"], "S1": ["VV"], "Landsat": ["B10"], "Planet": ["coastal_blue", "blue", "green", "green_i", "yellow", "red", "rededge", "nir"], "Alos": ["HH"]}}</textarea>
+                                            </div>
+                                            <div class="param-field">
+                                                <label>moran-nfeatures-ratio-min</label>
+                                                <input type="number" id="sm_moran_nfeat" value="0.5" step="0.05" min="0"
+                                                    max="1">
+                                            </div>
+                                            <div class="param-field">
+                                                <label>moran-i-threshold</label>
+                                                <span class="param-hint">Comma-separated values</span>
+                                                <input type="text" id="sm_moran_i" value="0.4, 0.5, 0.6"
+                                                    style="padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);outline:none;max-width:300px;">
+                                            </div>
+                                            <div class="param-field">
+                                                <label>moran-dist</label>
+                                                <span class="param-hint">Comma-separated values (meters)</span>
+                                                <input type="text" id="sm_moran_dist" value="50, 75, 100, 125, 150"
+                                                    style="padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);outline:none;max-width:300px;">
+                                            </div>
+                                        </div>
+                                    </details>
+                                    <button type="button" class="param-reset-btn"
+                                        onclick="resetParamDefaults('soil-mapping')" style="margin-top:6px;">↺ Reset to
+                                        Defaults</button>
+                                </div>
+
+                                <!-- Guided Sampling params -->
+                                <div id="gsParamsForm" style="display:none;">
+                                    <details class="param-section" open>
+                                        <summary>⚙️ Parameters</summary>
+                                        <div class="param-fields">
+                                            <div class="param-field">
+                                                <label>samples-density-min</label>
+                                                <span class="param-hint">Per hectare</span>
+                                                <input type="number" id="gs_density_min" value="0.2" step="0.05"
+                                                    min="0">
+                                            </div>
+                                            <div class="param-field">
+                                                <label>samples-density-max</label>
+                                                <span class="param-hint">Per hectare</span>
+                                                <input type="number" id="gs_density_max" value="0.25" step="0.05"
+                                                    min="0">
+                                            </div>
+                                            <div class="param-field">
+                                                <label>boundary-buffer</label>
+                                                <span class="param-hint">Meters</span>
+                                                <input type="number" id="gs_boundary_buffer" value="50" step="5"
+                                                    min="0">
+                                            </div>
+                                            <div class="param-field">
+                                                <label>inter-sample-min-dist</label>
+                                                <span class="param-hint">Meters</span>
+                                                <input type="number" id="gs_inter_sample" value="60" step="5" min="0">
+                                            </div>
+                                            <div class="param-field">
+                                                <label>add-samples-ratio</label>
+                                                <span class="param-hint">Additional samples ratio</span>
+                                                <input type="number" id="gs_add_ratio" value="0.1" step="0.05" min="0"
+                                                    max="1">
+                                            </div>
+                                            <div class="param-field">
+                                                <label>add-samples-dist</label>
+                                                <span class="param-hint">Inter-sample distance for additional samples
+                                                    (m)</span>
+                                                <input type="number" id="gs_add_dist" value="30" step="5" min="0">
+                                            </div>
+                                        </div>
+                                    </details>
+                                    <details class="param-section">
+                                        <summary>🔧 Advanced Parameters</summary>
+                                        <div class="param-fields">
+                                            <div class="param-field">
+                                                <label>n-clusters-opt-threshold</label>
+                                                <span class="param-hint">Min change ratio to select num of
+                                                    clusters</span>
+                                                <input type="number" id="gs_cluster_thresh" value="0.03" step="0.01"
+                                                    min="0">
+                                            </div>
+                                            <div class="param-field">
+                                                <label>moran-i-threshold</label>
+                                                <span class="param-hint">Comma-separated</span>
+                                                <input type="text" id="gs_moran_i" value="0.4, 0.3"
+                                                    style="padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);outline:none;max-width:300px;">
+                                            </div>
+                                            <div class="param-field">
+                                                <label>moran-dist</label>
+                                                <span class="param-hint">Comma-separated (meters)</span>
+                                                <input type="text" id="gs_moran_dist" value="75"
+                                                    style="padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);outline:none;max-width:300px;">
+                                            </div>
+                                            <div class="param-field">
+                                                <label>number-clusters-max</label>
+                                                <input type="number" id="gs_clusters_max" value="200" step="10" min="1">
+                                            </div>
+                                            <div class="param-field">
+                                                <label>area-min-ratio</label>
+                                                <input type="number" id="gs_area_min" value="0.005" step="0.001"
+                                                    min="0">
+                                            </div>
+                                            <div class="param-field">
+                                                <label>seasons-and-sats</label>
+                                                <textarea id="gs_seasons_and_sats"
+                                                    rows="2">{"bare+pick": ["S2", "S1", "Landsat"]}</textarea>
+                                            </div>
+                                            <div class="param-field">
+                                                <label>sat-ref</label>
+                                                <input type="text" id="gs_sat_ref" value="S2"
+                                                    style="padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);outline:none;max-width:200px;">
+                                            </div>
+                                            <div class="param-field">
+                                                <label>sat-date</label>
+                                                <textarea id="gs_sat_date"
+                                                    rows="4">{"default": {"S2": ["2017-01-01", "2030-12-10"], "S1": ["2017-01-01", "2030-12-10"], "Landsat": ["2017-01-01", "2030-12-10"], "Planet": ["2017-01-01", "2030-01-01"], "Alos": ["2020-01-01", "2023-10-30"]}}</textarea>
+                                            </div>
+                                            <div class="param-field">
+                                                <label>dem-bands</label>
+                                                <span class="param-hint">Comma-separated</span>
+                                                <input type="text" id="gs_dem_bands" value="slope, hillshaded"
+                                                    style="padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);outline:none;max-width:300px;">
+                                            </div>
+                                            <div class="param-field">
+                                                <label>pca-param-n-compenents</label>
+                                                <textarea id="gs_pca_params"
+                                                    rows="4">{"default": {"S2": [0.8, 4, 12], "S1": [0.7, 1, 2], "Planet": [0.9, 4, 12], "Alos": [0.5, 3, 6], "Landsat": [0.8, 2, 4]}}</textarea>
+                                            </div>
+                                        </div>
+                                    </details>
+                                    <button type="button" class="param-reset-btn"
+                                        onclick="resetParamDefaults('guided-sampling')" style="margin-top:6px;">↺ Reset
+                                        to
+                                        Defaults</button>
+                                </div>
+                            </div>
+
+                            <!-- JSON MODE -->
+                            <div id="paramJsonMode" style="display:none;">
+                                <textarea id="paramsInput" class="form-control form-textarea" rows="6"
+                                    placeholder='Paste complete parameters as JSON…'></textarea>
+                            </div>
+
+                            <!-- FILE MODE -->
+                            <div id="paramFileMode" style="display:none;">
+                                <div class="param-file-upload">
+                                    <button type="button" class="upload-btn"
+                                        onclick="document.getElementById('paramFileInput').click()">
+                                        📎 Upload JSON File
+                                    </button>
+                                    <input type="file" id="paramFileInput" accept=".json,.yaml,.yml"
+                                        style="display:none" onchange="handleParamFile(event)">
+                                    <span id="paramFileName" class="param-file-name"></span>
+                                </div>
+                                <textarea id="paramFileContent" class="form-control form-textarea" rows="6"
+                                    style="margin-top:8px;" placeholder='File contents will appear here…'
+                                    readonly></textarea>
+                            </div>
+                        </div><!-- /customParamsContainer -->
+                    </div>
+                </div>
+
+                <div id="formActions" style="display:none;">
+                    <button type="button" class="submit-btn" id="submitBtn" onclick="submitTask()">
+                        Submit Task
+                    </button>
+                </div>
+
+                <div id="validationMsg" class="validation-msg" style="display:none;"></div>
+
+                <!-- Results Area -->
+                <div id="resultsArea" style="display:none;">
+                    <div class="results-header">Results</div>
+                    <div id="resultsContent"></div>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- Map Panel -->
+        <div class="map-panel">
+            <div class="map-header">
+                <h2>🗺️ Interactive Map</h2>
+            </div>
+            <div class="map-controls">
+                <label for="soilVarSelect">Soil Variable:</label>
+                <select id="soilVarSelect" onchange="displaySoilVariable()">
+                    <option value="">— none —</option>
+                </select>
+                <label class="interp-toggle"><input type="checkbox" id="interpToggle" onchange="toggleInterpolation()">
+                    Interpolation</label>
+                <button class="clear-btn" onclick="clearMap()">Clear Map</button>
+            </div>
+            <div id="map"></div>
+            <div class="map-legend" id="mapLegend" style="display:none;">
+                <span>Low</span>
+                <div class="legend-gradient"></div>
+                <span>High</span>
+                <span id="legendRange" style="margin-left:8px;font-weight:600;"></span>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/shpjs@4.0.4/dist/shp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://unpkg.com/@tmcw/togeojson@5.8.0/dist/togeojson.umd.js"></script>
+    <script>
+        // ── Config ──
+        const WEBHOOK_URL = 'https://n8n.syngenta.com/webhook/chatsoilmap';
+        const SESSION_ID = 'session_' + Math.random().toString(36).slice(2, 11);
+        let AUTH_HEADER = '';
+
+        // PDF.js worker
+        if (typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+
+        function doLogin() {
+            const user = document.getElementById('loginUser').value.trim();
+            const pass = document.getElementById('loginPass').value;
+            if (!user || !pass) {
+                document.getElementById('loginError').textContent = 'Please enter both username and password.';
+                document.getElementById('loginError').style.display = 'block';
+                return;
+            }
+            AUTH_HEADER = 'Basic ' + btoa(user + ':' + pass);
+            document.getElementById('loginOverlay').classList.add('hidden');
+            document.getElementById('appLayout').style.display = '';
+            setTimeout(() => map.invalidateSize(), 100);
+        }
+
+        // Auth-aware fetch wrapper: catches 401/403 and re-shows login
+        async function authFetch(url, options = {}) {
+            options.headers = { ...options.headers, 'Authorization': AUTH_HEADER };
+            const response = await fetch(url, options);
+            if (response.status === 401 || response.status === 403) {
+                AUTH_HEADER = '';
+                document.getElementById('loginOverlay').classList.remove('hidden');
+                document.getElementById('appLayout').style.display = 'none';
+                document.getElementById('loginError').textContent = 'Session expired. Please sign in again.';
+                document.getElementById('loginError').style.display = 'block';
+                throw new Error('Authentication failed — please sign in again.');
+            }
+            return response;
+        }
+        // Allow Enter key to submit login
+        document.getElementById('loginPass')?.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+        document.getElementById('loginUser')?.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('loginPass').focus(); });
+
+        // ── Map setup ──
+        const map = L.map('map').setView([51.98, 5.66], 4);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        let boundaryLayer = null;
+        let samplesLayer = null;
+        let interpLayer = null;
+        let currentSamples = null;
+
+        // ── Task Type Change ──
+        function onTaskTypeChange() {
+            const type = document.getElementById('taskType').value;
+            const taskFields = document.getElementById('taskFields');
+            const formActions = document.getElementById('formActions');
+            const soilSamplesGroup = document.getElementById('soilSamplesGroup');
+            const resultsArea = document.getElementById('resultsArea');
+            const validationMsg = document.getElementById('validationMsg');
+
+            validationMsg.style.display = 'none';
+            resultsArea.style.display = 'none';
+
+            // Clear invalid highlights
+            document.querySelectorAll('.form-control.invalid').forEach(el => el.classList.remove('invalid'));
+
+            if (type === 'check-jobs') {
+                taskFields.style.display = 'none';
+                formActions.style.display = 'block';
+                document.getElementById('submitBtn').textContent = '📊 Check Job Status';
+            } else if (type === 'guided-sampling' || type === 'soil-mapping') {
+                taskFields.style.display = 'block';
+                formActions.style.display = 'block';
+                if (type === 'soil-mapping') {
+                    const ready = sampleVerified && boundaryVerified;
+                    document.getElementById('submitBtn').disabled = !ready;
+                    if (ready) {
+                        document.getElementById('submitBtn').textContent = '✅ Submit Verified Task';
+                    } else if (!boundaryVerified && !sampleVerified) {
+                        document.getElementById('submitBtn').textContent = 'Submit Task (verify boundary & samples first)';
+                    } else if (!boundaryVerified) {
+                        document.getElementById('submitBtn').textContent = 'Submit Task (verify boundary first)';
+                    } else {
+                        document.getElementById('submitBtn').textContent = 'Submit Task (verify samples first)';
+                    }
+                } else {
+                    // guided-sampling
+                    document.getElementById('submitBtn').disabled = !boundaryVerified;
+                    document.getElementById('submitBtn').textContent = boundaryVerified ? '✅ Submit Verified Task' : 'Submit Task (verify boundary first)';
+                }
+                soilSamplesGroup.style.display = type === 'soil-mapping' ? 'block' : 'none';
+                // Show correct param form
+                document.getElementById('smParamsForm').style.display = type === 'soil-mapping' ? 'block' : 'none';
+                document.getElementById('gsParamsForm').style.display = type === 'guided-sampling' ? 'block' : 'none';
+                if (type !== 'soil-mapping') {
+                    if (typeof removeSampleFile === 'function') removeSampleFile();
+                }
+            } else {
+                taskFields.style.display = 'none';
+                formActions.style.display = 'none';
+            }
+        }
+
+        // ── Boundary File Upload & Verification ──
+        async function handleBoundaryUpload(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+
+            // Check if user selected multiple shapefile component files (.shp + .dbf + .shx etc.)
+            const fileList = Array.from(files);
+            const exts = fileList.map(f => f.name.split('.').pop().toLowerCase());
+            const hasShpComponents = exts.includes('shp') && fileList.length > 1;
+
+            // Use first file for single-file uploads
+            const file = fileList[0];
+            const ext = file.name.split('.').pop().toLowerCase();
+            const displayName = hasShpComponents
+                ? fileList.map(f => f.name).join(', ')
+                : file.name;
+
+            // Show processing state
+            document.getElementById('boundaryFileName').textContent = '⏳ Processing ' + displayName + '…';
+            document.getElementById('boundaryFileInfo').style.display = 'flex';
+            document.getElementById('boundaryDropZone').style.display = 'none';
+            document.getElementById('boundaryVerificationPanel').style.display = 'none';
+            document.getElementById('fieldNameGroup').style.display = 'none';
+
+            // Reset boundary state
+            boundaryVerified = false;
+            validatedBoundaries = null;
+            selectedBoundaryIdx = 0;
+            rawBoundaryText = null;
+            document.getElementById('boundaryInput').value = '';
+            document.getElementById('fieldName').value = '';
+            updateSubmitState();
+
+            try {
+                if (hasShpComponents || ext === 'zip' || ext === 'shp') {
+                    // Convert Shapefile (ZIP or loose components) to GeoJSON client-side
+                    document.getElementById('boundaryFileName').textContent = '⏳ Converting shapefile to GeoJSON…';
+                    let buf;
+                    if (hasShpComponents) {
+                        // Multiple loose files (.shp + .dbf + .shx + .prj) → zip in-memory
+                        if (typeof JSZip === 'undefined') throw new Error('JSZip library not loaded. Cannot assemble shapefile components.');
+                        const zip = new JSZip();
+                        for (const f of fileList) {
+                            const ab = await readFileAs(f, 'arraybuffer');
+                            zip.file(f.name, ab);
+                        }
+                        buf = await zip.generateAsync({ type: 'arraybuffer' });
+                        console.log('[handleBoundaryUpload] Assembled', fileList.length, 'shapefile components into ZIP (' + buf.byteLength + ' bytes)');
+                    } else {
+                        buf = await readFileAs(file, 'arraybuffer');
+                    }
+                    let geojson = null;
+                    try {
+                        if (typeof shp === 'undefined') throw new Error('Shapefile library not loaded.');
+                        geojson = await shp(buf);
+                    } catch (shpErr) {
+                        console.error('Shapefile conversion failed:', shpErr);
+                        showShapefileConversionHelp(displayName, shpErr.message);
+                        document.getElementById('boundaryFileInfo').style.display = 'none';
+                        document.getElementById('boundaryDropZone').style.display = '';
+                        return;
+                    }
+                    // shpjs may return a single FeatureCollection or an array of them
+                    if (Array.isArray(geojson)) {
+                        // Multiple layers — merge into one FeatureCollection
+                        const allFeatures = [];
+                        geojson.forEach(function (fc) {
+                            if (fc && fc.features) allFeatures.push.apply(allFeatures, fc.features);
+                        });
+                        geojson = { type: 'FeatureCollection', features: allFeatures };
+                    }
+                    if (!geojson || !geojson.features || geojson.features.length === 0) {
+                        showShapefileConversionHelp(displayName, 'No features found in shapefile.');
+                        document.getElementById('boundaryFileInfo').style.display = 'none';
+                        document.getElementById('boundaryDropZone').style.display = '';
+                        return;
+                    }
+                    rawBoundaryText = JSON.stringify(geojson);
+                    console.log('[handleBoundaryUpload] Shapefile converted to GeoJSON:', geojson.features.length, 'features');
+                } else if (ext === 'kml' || ext === 'gml') {
+                    // KML / GML → GeoJSON via @tmcw/togeojson
+                    document.getElementById('boundaryFileName').textContent = '⏳ Converting ' + ext.toUpperCase() + ' to GeoJSON…';
+                    const xmlText = await readFileAs(file, 'text');
+                    if (!xmlText || xmlText.trim().length === 0) throw new Error('File is empty or unreadable.');
+                    const dom = new DOMParser().parseFromString(xmlText, 'text/xml');
+                    const parseError = dom.querySelector('parsererror');
+                    if (parseError) throw new Error('Invalid XML: ' + parseError.textContent.slice(0, 120));
+                    let geojson;
+                    if (typeof toGeoJSON === 'undefined') throw new Error('toGeoJSON library not loaded.');
+                    if (ext === 'kml') {
+                        geojson = toGeoJSON.kml(dom);
+                    } else {
+                        // GML — toGeoJSON does not support GML natively, parse as KML fallback
+                        geojson = toGeoJSON.kml(dom);
+                    }
+                    if (!geojson || !geojson.features || geojson.features.length === 0) {
+                        throw new Error('No features found in ' + ext.toUpperCase() + ' file.');
+                    }
+                    rawBoundaryText = JSON.stringify(geojson);
+                    console.log('[handleBoundaryUpload] ' + ext.toUpperCase() + ' converted to GeoJSON:', geojson.features.length, 'features');
+                } else if (ext === 'kmz') {
+                    // KMZ is a zipped KML
+                    document.getElementById('boundaryFileName').textContent = '⏳ Extracting KMZ and converting to GeoJSON…';
+                    if (typeof JSZip === 'undefined') throw new Error('JSZip library not loaded.');
+                    const buf = await readFileAs(file, 'arraybuffer');
+                    const zip = await JSZip.loadAsync(buf);
+                    // Find the .kml file inside the KMZ
+                    let kmlContent = null;
+                    for (const [name, entry] of Object.entries(zip.files)) {
+                        if (name.toLowerCase().endsWith('.kml') && !entry.dir) {
+                            kmlContent = await entry.async('string');
+                            break;
+                        }
+                    }
+                    if (!kmlContent) throw new Error('No .kml file found inside KMZ archive.');
+                    const dom = new DOMParser().parseFromString(kmlContent, 'text/xml');
+                    const parseError = dom.querySelector('parsererror');
+                    if (parseError) throw new Error('Invalid KML inside KMZ: ' + parseError.textContent.slice(0, 120));
+                    if (typeof toGeoJSON === 'undefined') throw new Error('toGeoJSON library not loaded.');
+                    const geojson = toGeoJSON.kml(dom);
+                    if (!geojson || !geojson.features || geojson.features.length === 0) {
+                        throw new Error('No features found in KMZ file.');
+                    }
+                    rawBoundaryText = JSON.stringify(geojson);
+                    console.log('[handleBoundaryUpload] KMZ converted to GeoJSON:', geojson.features.length, 'features');
+                } else {
+                    // JSON, GeoJSON text
+                    rawBoundaryText = await readFileAs(file, 'text');
+                    if (!rawBoundaryText || rawBoundaryText.trim().length === 0) {
+                        throw new Error('File is empty or unreadable.');
+                    }
+                    rawBoundaryText = rawBoundaryText.trim();
+                }
+
+                document.getElementById('boundaryFileName').textContent = '✓ ' + displayName;
+
+                // Auto-trigger verification
+                await verifyBoundary();
+            } catch (err) {
+                showValidation('⚠️ Error processing boundary file: ' + err.message, 'error');
+                document.getElementById('boundaryFileInfo').style.display = 'none';
+                document.getElementById('boundaryDropZone').style.display = '';
+            }
+        }
+
+        function showShapefileConversionHelp(fileName, errorMsg) {
+            const panel = document.getElementById('boundaryVerificationPanel');
+            panel.innerHTML = '<div class="verification-panel">' +
+                '<div class="vp-header error">❌ Shapefile Conversion Failed</div>' +
+                '<div class="vp-body">' +
+                '<p style="margin-bottom:8px;"><strong>Could not convert</strong> <code>' + fileName + '</code> to GeoJSON.</p>' +
+                '<p style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;">Error: ' + errorMsg + '</p>' +
+                '<div style="background:var(--syngenta-light);border:1.5px solid var(--syngenta-green);border-radius:8px;padding:14px;margin-top:8px;">' +
+                '<p style="font-weight:600;margin-bottom:8px;">💡 How to fix this:</p>' +
+                '<ol style="font-size:12px;line-height:1.8;padding-left:18px;">' +
+                '<li>Make sure your <strong>.zip</strong> file contains all required shapefile components: <code>.shp</code>, <code>.dbf</code>, <code>.shx</code>, and optionally <code>.prj</code></li>' +
+                '<li>Or convert your boundary to <strong>GeoJSON</strong> using one of these free tools:' +
+                '<ul style="margin-top:4px;padding-left:16px;">' +
+                '<li><a href="https://mapshaper.org" target="_blank" style="color:var(--syngenta-green);font-weight:600;">mapshaper.org</a> — Drag &amp; drop your shapefile, then Export as GeoJSON</li>' +
+                '<li><a href="https://ogre.adc4gis.com" target="_blank" style="color:var(--syngenta-green);font-weight:600;">ogre.adc4gis.com</a> — Upload and convert online</li>' +
+                '<li><a href="https://geojson.io" target="_blank" style="color:var(--syngenta-green);font-weight:600;">geojson.io</a> — Open, edit, and export as GeoJSON</li>' +
+                '</ul></li>' +
+                '<li>Then upload the resulting <strong>.geojson</strong> or <strong>.json</strong> file here</li>' +
+                '</ol>' +
+                '<div style="text-align:center;margin-top:12px;">' +
+                '<img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Wikipedia-logo-v2.svg/100px-Wikipedia-logo-v2.svg.png" alt="" style="display:none;">' +
+                '<div style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:10px;display:inline-block;">' +
+                '<pre style="font-size:11px;text-align:left;margin:0;color:var(--text-primary);">' +
+                '<strong>Required files in .zip:</strong>\n' +
+                '📄 boundary.shp   (geometry)\n' +
+                '📄 boundary.dbf   (attributes)\n' +
+                '📄 boundary.shx   (index)\n' +
+                '📄 boundary.prj   (projection)  ← recommended' +
+                '</pre></div></div>' +
+                '</div></div></div>';
+            panel.style.display = 'block';
+        }
+
+        function removeBoundaryFile() {
+            rawBoundaryText = null;
+            validatedBoundaries = null;
+            boundaryVerified = false;
+            selectedBoundaryIdx = 0;
+            document.getElementById('boundaryFileInfo').style.display = 'none';
+            document.getElementById('boundaryDropZone').style.display = '';
+            document.getElementById('boundaryVerificationPanel').style.display = 'none';
+            document.getElementById('boundaryInput').value = '';
+            document.getElementById('fieldName').value = '';
+            document.getElementById('fieldNameGroup').style.display = 'none';
+            document.getElementById('boundaryFileInput').value = '';
+            document.getElementById('verifyBoundaryBtn').style.display = 'none';
+            if (boundaryLayer) { map.removeLayer(boundaryLayer); boundaryLayer = null; }
+            updateSubmitState();
+        }
+
+        async function verifyBoundary() {
+            if (!rawBoundaryText) {
+                showValidation('⚠️ Please upload a boundary file first.', 'error');
+                return;
+            }
+            const verifyBtn = document.getElementById('verifyBoundaryBtn');
+            const panel = document.getElementById('boundaryVerificationPanel');
+            if (verifyBtn) { verifyBtn.disabled = true; verifyBtn.textContent = '⏳ Verifying…'; }
+            panel.innerHTML = '<div class="verification-panel"><div class="vp-header" style="background:var(--syngenta-light);color:var(--syngenta-dark);justify-content:center;">⏳ Verifying & extracting boundary…</div></div>';
+            panel.style.display = 'block';
+            clearValidation();
+
+            const chatInput = 'VERIFY_BOUNDARY: ' + rawBoundaryText;
+
+            try {
+                const response = await authFetch(WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chatInput, sessionId: SESSION_ID })
+                });
+                if (!response.ok) throw new Error('Server responded with status ' + response.status);
+                const data = await response.json();
+                const reply = extractReply(data);
+                console.log('[verifyBoundary] typeof reply:', typeof reply, '| keys:', typeof reply === 'object' && reply ? Object.keys(reply) : 'N/A');
+                displayBoundaryVerificationResults(reply);
+            } catch (err) {
+                showValidation('⚠️ Boundary verification failed: ' + err.message, 'error');
+                panel.style.display = 'none';
+            } finally {
+                if (verifyBtn) {
+                    verifyBtn.disabled = false;
+                    verifyBtn.textContent = '🔄 Re-verify Boundary';
+                    verifyBtn.style.display = 'block';
+                }
+            }
+        }
+
+        function displayBoundaryVerificationResults(reply) {
+            const panel = document.getElementById('boundaryVerificationPanel');
+            let result = null;
+            const TAG = '[displayBoundaryVerification]';
+
+            // If reply is already a parsed object with expected keys, use directly
+            if (reply && typeof reply === 'object' && !Array.isArray(reply) && 'success' in reply) {
+                result = reply;
+                console.log(TAG, 'reply was already an object');
+            }
+
+            // Convert to string for text-based parsing
+            var replyStr = (typeof reply === 'string') ? reply : JSON.stringify(reply, null, 2);
+            var cleaned = replyStr.trim()
+                .replace(/^\uFEFF/, '')              // BOM
+                .replace(/[\u200B\u200C\u200D\uFEFF]/g, '')  // zero-width chars
+                .replace(/\r\n/g, '\n');             // normalize newlines
+
+            // Strategy 1: indexOf-based code block extraction (most reliable)
+            if (!result) {
+                var cbStart = cleaned.indexOf('```');
+                if (cbStart !== -1) {
+                    var lineEnd = cleaned.indexOf('\n', cbStart);
+                    var cbEnd = cleaned.lastIndexOf('```');
+                    if (lineEnd !== -1 && cbEnd > lineEnd) {
+                        var inner = cleaned.substring(lineEnd + 1, cbEnd).trim();
+                        try { result = JSON.parse(inner); console.log(TAG, 'Strategy 1 (indexOf code block) succeeded'); }
+                        catch (e) { console.warn(TAG, 'Strategy 1 failed:', e.message, '| first 200:', inner.substring(0, 200)); }
+                    }
+                }
+            }
+
+            // Strategy 2: regex code block (greedy to capture large JSON)
+            if (!result) {
+                var cbm = cleaned.match(/```(?:json)?\s*([\s\S]+?)\s*```/);
+                if (cbm) {
+                    try { result = JSON.parse(cbm[1].trim()); console.log(TAG, 'Strategy 2 (regex code block) succeeded'); }
+                    catch (e) { console.warn(TAG, 'Strategy 2 failed:', e.message); }
+                }
+            }
+
+            // Strategy 3: direct parse
+            if (!result) {
+                try { result = JSON.parse(cleaned); console.log(TAG, 'Strategy 3 (direct parse) succeeded'); }
+                catch (e) { /* expected for non-JSON text */ }
+            }
+
+            // Strategy 4: first { to last }
+            if (!result) {
+                var first = cleaned.indexOf('{');
+                var last = cleaned.lastIndexOf('}');
+                if (first !== -1 && last > first) {
+                    try { result = JSON.parse(cleaned.substring(first, last + 1)); console.log(TAG, 'Strategy 4 (brace extraction) succeeded'); }
+                    catch (e) { console.warn(TAG, 'Strategy 4 failed:', e.message); }
+                }
+            }
+
+            // Strategy 5: balanced-brace walk from {"success"
+            if (!result) {
+                var s = cleaned.search(/\{\s*"success"/);
+                if (s !== -1) {
+                    var sub = cleaned.substring(s);
+                    var d = 0, end = -1;
+                    for (var i = 0; i < sub.length; i++) {
+                        if (sub[i] === '{') d++;
+                        else if (sub[i] === '}') { d--; if (d === 0) { end = i; break; } }
+                    }
+                    if (end > 0) {
+                        try { result = JSON.parse(sub.substring(0, end + 1)); console.log(TAG, 'Strategy 5 (balanced brace) succeeded'); }
+                        catch (e) { console.warn(TAG, 'Strategy 5 failed:', e.message); }
+                    }
+                }
+            }
+
+            // Strategy 6: handle double-escaped JSON (literal \n and \" in the string)
+            if (!result && (cleaned.indexOf('\\n') !== -1 || cleaned.indexOf('\\"') !== -1)) {
+                var unesc = cleaned.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t');
+                var f2 = unesc.indexOf('{'), l2 = unesc.lastIndexOf('}');
+                if (f2 !== -1 && l2 > f2) {
+                    try { result = JSON.parse(unesc.substring(f2, l2 + 1)); console.log(TAG, 'Strategy 6 (double-unescape) succeeded'); }
+                    catch (e) { console.warn(TAG, 'Strategy 6 failed:', e.message); }
+                }
+            }
+
+            // Validate result has expected structure
+            if (result && (typeof result !== 'object' || Array.isArray(result))) {
+                console.warn(TAG, 'Parsed result is not an object, discarding');
+                result = null;
+            }
+
+            // If result has "success" but no "boundaries" key, try to reconstruct from nested data
+            if (result && 'success' in result && !('boundaries' in result)) {
+                // Some responses wrap boundaries differently - check for geometry at top level
+                if (result.geometry || result.features) {
+                    result.boundaries = { geometry: result.geometry ? [result.geometry] : result.features.map(function (f) { return f.geometry; }), FieldName: ['Field01'] };
+                    console.log(TAG, 'Reconstructed boundaries from top-level geometry/features');
+                }
+            }
+
+            console.log(TAG, 'Final result:', result ? 'parsed OK (success=' + result.success + ', hasBoundaries=' + ('boundaries' in result) + ')' : 'FAILED all strategies');
+
+            const escHtml = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const rawId = 'rawBoundaryResp_' + Date.now();
+            const rawToggle = '<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;"><button type="button" class="tbtn" onclick="document.getElementById(\'' + rawId + '\').style.display=document.getElementById(\'' + rawId + '\').style.display===\'none\'?\'block\':\'none\'" style="font-size:11px;">🔧 Raw Response</button><pre id="' + rawId + '" style="display:none;font-size:11px;background:#1a1a2e;color:#e0e0e0;padding:10px;border-radius:6px;margin-top:6px;max-height:300px;overflow:auto;white-space:pre-wrap;word-break:break-all;">' + escHtml(replyStr) + '</pre></div>';
+
+            if (!result || !('boundaries' in result)) {
+                boundaryVerified = false;
+                updateSubmitState();
+                panel.innerHTML = '<div class="verification-panel"><div class="vp-header warning">⚠️ Could not parse boundary verification response</div><div class="vp-body"><p style="white-space:pre-wrap;font-size:12px;">' + escHtml(replyStr) + '</p>' + rawToggle + '</div></div>';
+                panel.style.display = 'block';
+                return;
+            }
+
+            const isSuccess = result.success === 'yes';
+            const hasBoundaries = result.boundaries && Array.isArray(result.boundaries.geometry) && result.boundaries.geometry.length > 0;
+
+            let html = '<div class="verification-panel">';
+            if (isSuccess && hasBoundaries) {
+                html += '<div class="vp-header success">✅ Boundary Validated — ' + result.boundaries.geometry.length + ' field(s) found</div>';
+            } else {
+                html += '<div class="vp-header error">❌ Boundary Validation Failed</div>';
+            }
+
+            html += '<div class="vp-body">';
+            if (result.message) html += '<p style="margin-bottom:8px;"><strong>Summary:</strong> ' + escHtml(result.message) + '</p>';
+            if (result.warnings && result.warnings.length > 0) {
+                html += '<p style="color:#B7950B;font-weight:600;">⚠️ Warnings:</p><ul>';
+                result.warnings.forEach(function (w) { html += '<li>' + escHtml(w) + '</li>'; });
+                html += '</ul>';
+            }
+            if (result.errors && result.errors.length > 0) {
+                html += '<p style="color:#B91C1C;font-weight:600;">❌ Errors:</p><ul>';
+                result.errors.forEach(function (e) { html += '<li>' + escHtml(e) + '</li>'; });
+                html += '</ul>';
+            }
+
+            if (hasBoundaries) {
+                validatedBoundaries = result.boundaries;
+                const nFields = result.boundaries.geometry.length;
+
+                // If multiple fields, show radio selector
+                if (nFields > 1) {
+                    html += '<div class="field-selector"><label>Select Field:</label><div class="field-radio-group">';
+                    for (let i = 0; i < nFields; i++) {
+                        const fn = result.boundaries.FieldName[i] || ('Field ' + (i + 1));
+                        html += '<label><input type="radio" name="boundaryFieldSelect" value="' + i + '"' + (i === 0 ? ' checked' : '') + ' onchange="onBoundaryFieldSelect(' + i + ')"> ' + escHtml(fn) + '</label>';
+                    }
+                    html += '</div></div>';
+                }
+
+                html += '<div style="margin-top:8px;"><button type="button" class="abtn accept" onclick="acceptBoundary()">✅ Accept Boundary</button></div>';
+            }
+
+            html += rawToggle + '</div></div>';
+            panel.innerHTML = html;
+            panel.style.display = 'block';
+
+            // Show boundary on map and populate FieldName
+            if (isSuccess && hasBoundaries) {
+                selectedBoundaryIdx = 0;
+                displayAllValidatedBoundaries();
+                populateFieldName();
+            } else {
+                boundaryVerified = false;
+            }
+            updateSubmitState();
+        }
+
+        function onBoundaryFieldSelect(idx) {
+            selectedBoundaryIdx = idx;
+            populateFieldName();
+            displayAllValidatedBoundaries();
+        }
+
+        function displayAllValidatedBoundaries() {
+            if (!validatedBoundaries || !validatedBoundaries.geometry) return;
+            if (boundaryLayer) map.removeLayer(boundaryLayer);
+            try {
+                const features = validatedBoundaries.geometry.map(function (geom, i) {
+                    return {
+                        type: 'Feature',
+                        properties: {
+                            name: validatedBoundaries.FieldName[i] || ('Field ' + (i + 1)),
+                            selected: i === selectedBoundaryIdx
+                        },
+                        geometry: geom
+                    };
+                });
+                const fc = { type: 'FeatureCollection', features: features };
+                boundaryLayer = L.geoJSON(fc, {
+                    style: function (feature) {
+                        return feature.properties.selected
+                            ? { color: '#e74c3c', weight: 3, fillOpacity: 0.12, fillColor: '#e74c3c' }
+                            : { color: '#3388ff', weight: 2, fillOpacity: 0.05, fillColor: '#3388ff', dashArray: '5,5' };
+                    },
+                    onEachFeature: function (feature, layer) {
+                        layer.bindTooltip(feature.properties.name, { permanent: false });
+                    }
+                }).addTo(map);
+                map.fitBounds(boundaryLayer.getBounds(), { padding: [30, 30] });
+            } catch (e) {
+                console.error('Could not display validated boundaries:', e);
+            }
+        }
+
+        function cleanFieldName(name) {
+            if (!name) return '';
+            return name
+                .replace(/[/\\]/g, '')      // remove / and \
+                .replace(/\s+/g, ' ')        // collapse whitespace
+                .trim();
+        }
+
+        function populateFieldName() {
+            if (!validatedBoundaries || !validatedBoundaries.FieldName) return;
+            const raw = validatedBoundaries.FieldName[selectedBoundaryIdx] || '';
+            const fn = cleanFieldName(raw);
+            document.getElementById('fieldName').value = fn;
+            document.getElementById('fieldNameGroup').style.display = 'block';
+        }
+
+        function acceptBoundary() {
+            if (!validatedBoundaries || !validatedBoundaries.geometry || validatedBoundaries.geometry.length === 0) {
+                showValidation('⚠️ No valid boundary to accept.', 'error');
+                return;
+            }
+            const selectedGeom = validatedBoundaries.geometry[selectedBoundaryIdx];
+            // Store as a FeatureCollection with the selected boundary
+            const boundaryGeoJSON = {
+                type: 'FeatureCollection',
+                features: [{
+                    type: 'Feature',
+                    properties: { name: document.getElementById('fieldName').value.trim() || validatedBoundaries.FieldName[selectedBoundaryIdx] },
+                    geometry: selectedGeom
+                }]
+            };
+            document.getElementById('boundaryInput').value = JSON.stringify(boundaryGeoJSON);
+            boundaryVerified = true;
+
+            // Show selected boundary prominently on map
+            displayBoundary(boundaryGeoJSON);
+
+            document.getElementById('fieldNameGroup').style.display = 'block';
+            document.getElementById('boundaryVerificationPanel').style.display = 'none';
+            showValidation('✅ Boundary accepted! Field: ' + document.getElementById('fieldName').value.trim(), 'success');
+            updateSubmitState();
+        }
+
+        // ── Point-in-Polygon (ray-casting) ──
+        function pointInPolygon(point, polygon) {
+            // point: [lng, lat], polygon: array of [lng, lat] rings
+            var x = point[0], y = point[1];
+            var inside = false;
+            for (var i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                var xi = polygon[i][0], yi = polygon[i][1];
+                var xj = polygon[j][0], yj = polygon[j][1];
+                var intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+                if (intersect) inside = !inside;
+            }
+            return inside;
+        }
+
+        function pointInGeoJSONGeometry(point, geometry) {
+            // point: [lng, lat]
+            if (!geometry) return false;
+            if (geometry.type === 'Polygon') {
+                // Check outer ring (index 0), skip holes for simplicity
+                return pointInPolygon(point, geometry.coordinates[0]);
+            } else if (geometry.type === 'MultiPolygon') {
+                for (var p = 0; p < geometry.coordinates.length; p++) {
+                    if (pointInPolygon(point, geometry.coordinates[p][0])) return true;
+                }
+            } else if (geometry.type === 'GeometryCollection' && geometry.geometries) {
+                for (var g = 0; g < geometry.geometries.length; g++) {
+                    if (pointInGeoJSONGeometry(point, geometry.geometries[g])) return true;
+                }
+            }
+            return false;
+        }
+
+        function checkBoundarySampleIntersection() {
+            // Returns true if at least one sample falls inside the boundary
+            if (!parsedSamples || !boundaryVerified) return true; // skip check if no samples to check
+            var boundaryStr = document.getElementById('boundaryInput').value.trim();
+            if (!boundaryStr) return true;
+            var boundaryGeoJSON;
+            try { boundaryGeoJSON = JSON.parse(boundaryStr); } catch (e) { return true; }
+
+            // Collect sample points
+            var lats = parsedSamples['latitude'] || parsedSamples['Latitude'] || parsedSamples['lat'] || parsedSamples['y'];
+            var lngs = parsedSamples['longitude'] || parsedSamples['Longitude'] || parsedSamples['lng'] || parsedSamples['lon'] || parsedSamples['x'];
+            if (!lats || !lngs) return true; // no coordinates to check
+
+            // Collect all boundary geometries
+            var geometries = [];
+            if (boundaryGeoJSON.type === 'FeatureCollection' && boundaryGeoJSON.features) {
+                boundaryGeoJSON.features.forEach(function (f) { if (f.geometry) geometries.push(f.geometry); });
+            } else if (boundaryGeoJSON.type === 'Feature' && boundaryGeoJSON.geometry) {
+                geometries.push(boundaryGeoJSON.geometry);
+            } else if (boundaryGeoJSON.type === 'Polygon' || boundaryGeoJSON.type === 'MultiPolygon') {
+                geometries.push(boundaryGeoJSON);
+            }
+            if (geometries.length === 0) return true;
+
+            // Check each sample point
+            for (var i = 0; i < lats.length; i++) {
+                var lat = parseFloat(lats[i]);
+                var lng = parseFloat(lngs[i]);
+                if (isNaN(lat) || isNaN(lng)) continue;
+                var pt = [lng, lat];
+                for (var g = 0; g < geometries.length; g++) {
+                    if (pointInGeoJSONGeometry(pt, geometries[g])) return true;
+                }
+            }
+            return false;
+        }
+
+        // ── Map functions ──
+        function displayBoundary(geojson) {
+            if (boundaryLayer) map.removeLayer(boundaryLayer);
+            try {
+                boundaryLayer = L.geoJSON(geojson, {
+                    style: { color: '#e74c3c', weight: 3, fillOpacity: 0.08, fillColor: '#e74c3c' }
+                }).addTo(map);
+                map.fitBounds(boundaryLayer.getBounds(), { padding: [30, 30] });
+            } catch (e) {
+                console.error('Could not display boundary:', e);
+            }
+        }
+
+        function displaySamples(geojson) {
+            currentSamples = geojson;
+            const sel = document.getElementById('soilVarSelect');
+            sel.innerHTML = '<option value="">— none —</option>';
+            const vars = new Set();
+            geojson.features.forEach(f => {
+                Object.keys(f.properties || {}).forEach(k => {
+                    if (typeof f.properties[k] === 'number') vars.add(k);
+                });
+            });
+            vars.forEach(v => {
+                const opt = document.createElement('option');
+                opt.value = v;
+                opt.textContent = v;
+                sel.appendChild(opt);
+            });
+            displaySoilVariable();
+        }
+
+        function getColor(val, min, max) {
+            const ratio = Math.max(0, Math.min(1, (val - min) / (max - min || 1)));
+            if (ratio < 0.5) {
+                const r = Math.round(255 * (ratio * 2));
+                return `rgb(${r}, 200, 80)`;
+            } else {
+                const g = Math.round(200 * (1 - (ratio - 0.5) * 2));
+                return `rgb(230, ${g}, 60)`;
+            }
+        }
+
+        function displaySoilVariable() {
+            if (samplesLayer) map.removeLayer(samplesLayer);
+            if (interpLayer) { map.removeLayer(interpLayer); interpLayer = null; }
+            if (!currentSamples) return;
+
+            const varName = document.getElementById('soilVarSelect').value;
+            const legend = document.getElementById('mapLegend');
+
+            if (!varName) {
+                legend.style.display = 'none';
+                samplesLayer = L.geoJSON(currentSamples, {
+                    pointToLayer: (f, ll) => L.circleMarker(ll, {
+                        radius: 7, color: '#2c3e50', weight: 1.5,
+                        fillColor: '#3498db', fillOpacity: 0.85
+                    }).bindPopup(Object.entries(f.properties).map(([k, v]) => `<b>${k}:</b> ${v}`).join('<br>'))
+                }).addTo(map);
+                return;
+            }
+
+            const vals = currentSamples.features.map(f => f.properties[varName]).filter(v => v != null);
+            const min = Math.min(...vals);
+            const max = Math.max(...vals);
+
+            legend.style.display = 'flex';
+            document.getElementById('legendRange').textContent = `${varName}: ${min.toFixed(2)} \u2013 ${max.toFixed(2)}`;
+
+            samplesLayer = L.geoJSON(currentSamples, {
+                pointToLayer: (f, ll) => {
+                    const v = f.properties[varName];
+                    return L.circleMarker(ll, {
+                        radius: 9, color: '#333', weight: 1,
+                        fillColor: getColor(v, min, max), fillOpacity: 0.9
+                    }).bindPopup(`<b>${varName}:</b> ${v}<br>` +
+                        Object.entries(f.properties).filter(([k]) => k !== varName).map(([k, v]) => `${k}: ${v}`).join('<br>'));
+                }
+            }).addTo(map);
+
+            renderIDWLayer(varName);
+        }
+
+        function clearMap() {
+            if (boundaryLayer) { map.removeLayer(boundaryLayer); boundaryLayer = null; }
+            if (samplesLayer) { map.removeLayer(samplesLayer); samplesLayer = null; }
+            if (interpLayer) { map.removeLayer(interpLayer); interpLayer = null; }
+            currentSamples = null;
+            document.getElementById('soilVarSelect').innerHTML = '<option value="">— none —</option>';
+            document.getElementById('mapLegend').style.display = 'none';
+            map.setView([51.98, 5.66], 4);
+        }
+
+        // ── Validation helpers ──
+        function showValidation(msg, type) {
+            const el = document.getElementById('validationMsg');
+            el.className = 'validation-msg ' + type;
+            el.innerHTML = msg;
+            el.style.display = 'block';
+        }
+
+        function markInvalid(id) {
+            document.getElementById(id).classList.add('invalid');
+        }
+
+        function clearValidation() {
+            document.getElementById('validationMsg').style.display = 'none';
+            document.querySelectorAll('.form-control.invalid').forEach(el => el.classList.remove('invalid'));
+        }
+
+        function validateForm() {
+            const type = document.getElementById('taskType').value;
+            const errors = [];
+
+            if (type === 'check-jobs') return errors;
+
+            const email = document.getElementById('userEmail').value.trim();
+            const fieldName = document.getElementById('fieldName').value.trim();
+            const boundary = document.getElementById('boundaryInput').value.trim();
+
+            if (!email) {
+                errors.push('User Email is required');
+                markInvalid('userEmail');
+            } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                errors.push('Please enter a valid email address');
+                markInvalid('userEmail');
+            }
+
+            if (!boundaryVerified) {
+                errors.push('Field boundary must be uploaded and verified before submission.');
+            } else if (!boundary) {
+                errors.push('Field boundary data is missing — please re-upload and verify.');
+            }
+
+            if (!fieldName) {
+                errors.push('Field Name is required — it should be auto-populated from boundary verification.');
+                markInvalid('fieldName');
+            }
+
+            if (type === 'soil-mapping') {
+                if (!sampleVerified) {
+                    errors.push('Soil samples must be uploaded and verified before submission.');
+                } else {
+                    const samples = document.getElementById('soilSamples').value.trim();
+                    if (!samples) {
+                        errors.push('Soil Samples data is missing — please upload and verify your file.');
+                    } else {
+                        try { JSON.parse(samples); }
+                        catch (e) {
+                            errors.push('Soil Samples data is invalid. Please re-upload your file.');
+                        }
+                    }
+                }
+
+                // Check boundary-samples intersection
+                if (sampleVerified && boundaryVerified) {
+                    if (!checkBoundarySampleIntersection()) {
+                        errors.push('None of the soil samples fall within the field boundary. Please check that the boundary and samples match the same field.');
+                    }
+                }
+            }
+
+            // Validate parameters (only in JSON/file mode)
+            const paramMode = document.querySelector('.param-tab.active')?.dataset?.mode || 'form';
+            if (paramMode === 'json') {
+                const params = document.getElementById('paramsInput').value.trim();
+                if (params) {
+                    try { JSON.parse(params); }
+                    catch (e) {
+                        errors.push('Parameters must be valid JSON if provided');
+                        markInvalid('paramsInput');
+                    }
+                }
+            } else if (paramMode === 'file') {
+                const params = document.getElementById('paramFileContent').value.trim();
+                if (params) {
+                    try { JSON.parse(params); }
+                    catch (e) { errors.push('Uploaded parameter file is not valid JSON'); }
+                }
+            }
+            // form mode: validated by input types
+
+            return errors;
+        }
+
+        // ── Extract reply text from webhook response ──
+        function extractReply(data) {
+            if (typeof data === 'string') {
+                // Try to parse verification JSON from string (might be wrapped in code block)
+                var parsed = tryParseVerificationJSON(data);
+                return parsed || data;
+            }
+            // If data IS the verification result (has success + corrected or boundaries), return the whole object
+            if (data && typeof data === 'object' && !Array.isArray(data) && 'success' in data && ('corrected' in data || 'boundaries' in data)) return data;
+            if (data.output) {
+                // output might be a string containing ```json ... ``` — try to extract the object
+                if (typeof data.output === 'string') {
+                    var parsed2 = tryParseVerificationJSON(data.output);
+                    if (parsed2) return parsed2;
+                }
+                return data.output;
+            }
+            if (Array.isArray(data) && data.length > 0) {
+                var item = data[0];
+                if (item && typeof item === 'object' && 'success' in item && ('corrected' in item || 'boundaries' in item)) return item;
+                if (item && item.output) {
+                    if (typeof item.output === 'string') {
+                        var parsed3 = tryParseVerificationJSON(item.output);
+                        if (parsed3) return parsed3;
+                    }
+                    return item.output;
+                }
+            }
+            if (data.data && data.data.output) return data.data.output;
+            if (data.text) return data.text;
+            // Only use data.message as last text resort (it clashes with verification result's message field)
+            if (data.message && !('success' in data)) return data.message;
+            return JSON.stringify(data, null, 2);
+        }
+
+        // Try to parse a verification JSON object from a string (code block or raw)
+        function tryParseVerificationJSON(str) {
+            if (typeof str !== 'string') return null;
+            var s = str.trim();
+            // Quick check: does it look like it contains verification JSON?
+            if (s.indexOf('"success"') === -1) return null;
+
+            var obj = null;
+            // Try code block extraction
+            var cbStart = s.indexOf('```');
+            if (cbStart !== -1) {
+                var lineEnd = s.indexOf('\n', cbStart);
+                var cbEnd = s.lastIndexOf('```');
+                if (lineEnd !== -1 && cbEnd > lineEnd) {
+                    var inner = s.substring(lineEnd + 1, cbEnd).trim();
+                    try { obj = JSON.parse(inner); } catch (e) { }
+                }
+            }
+            // Try direct parse
+            if (!obj) {
+                try { obj = JSON.parse(s); } catch (e) { }
+            }
+            // Try brace extraction
+            if (!obj) {
+                var first = s.indexOf('{'), last = s.lastIndexOf('}');
+                if (first !== -1 && last > first) {
+                    try { obj = JSON.parse(s.substring(first, last + 1)); } catch (e) { }
+                }
+            }
+            // Validate it's a verification object
+            if (obj && typeof obj === 'object' && !Array.isArray(obj) && 'success' in obj && ('corrected' in obj || 'boundaries' in obj)) {
+                return obj;
+            }
+            return null;
+        }
+
+        // ── Parse jobs JSON into table HTML ──
+        // Handles both:
+        //   - Array of row objects: [{user:'a', status:'success'}, ...]
+        //   - Columnar object: {user:['a'], status:['success'], last_updated:'...'}
+        function parseJobsToTable(text) {
+            let parsed = null;
+
+            // Try direct parse
+            try { parsed = JSON.parse(text); } catch (e) { }
+
+            // Try to find embedded JSON (object or array)
+            if (!parsed) {
+                const match = text.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+                if (match) { try { parsed = JSON.parse(match[0]); } catch (e) { } }
+            }
+
+            // Try code block
+            if (!parsed) {
+                const codeMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+                if (codeMatch) { try { parsed = JSON.parse(codeMatch[1]); } catch (e) { } }
+            }
+
+            if (!parsed) return null;
+
+            let jobs = null;
+            let lastUpdated = null;
+
+            if (Array.isArray(parsed)) {
+                // Already row-based array
+                jobs = parsed;
+            } else if (typeof parsed === 'object') {
+                // Columnar format: {key: [val1, val2], ..., last_updated: 'single_value'}
+                const cols = Object.keys(parsed);
+                if (cols.length === 0) return null;
+
+                // Separate list columns from scalar columns
+                const listCols = [];
+                const scalarCols = {};
+                cols.forEach(c => {
+                    if (Array.isArray(parsed[c])) {
+                        listCols.push(c);
+                    } else {
+                        scalarCols[c] = parsed[c];
+                    }
+                });
+
+                // Determine number of rows from list columns
+                const numRows = listCols.length > 0 ? parsed[listCols[0]].length : 0;
+                if (numRows === 0) return null;
+
+                // Capture last_updated (or any scalar) separately
+                if (scalarCols.last_updated) lastUpdated = scalarCols.last_updated;
+
+                // Build row-based array
+                jobs = [];
+                for (let i = 0; i < numRows; i++) {
+                    const row = {};
+                    listCols.forEach(c => { row[c] = parsed[c][i] ?? ''; });
+                    // Add scalar values to each row
+                    Object.keys(scalarCols).forEach(c => { row[c] = scalarCols[c]; });
+                    jobs.push(row);
+                }
+            }
+
+            if (!jobs || jobs.length === 0) return null;
+
+            // Columns to display (show list columns first, then scalar columns, excluding last_updated from table body)
+            const displayCols = Object.keys(jobs[0]).filter(c => c !== 'last_updated');
+
+            // Pretty column headers
+            const prettyHeader = (col) => col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+            let html = '<div class="job-table-wrap"><table class="job-table"><thead><tr>';
+            displayCols.forEach(c => { html += '<th>' + prettyHeader(c) + '</th>'; });
+            html += '</tr></thead><tbody>';
+
+            jobs.forEach(j => {
+                html += '<tr>';
+                displayCols.forEach(c => {
+                    let val = j[c] ?? '';
+                    const key = c.toLowerCase();
+                    if (key === 'status') {
+                        const cls = String(val).toLowerCase();
+                        val = '<span class="status-badge ' + cls + '">' + val + '</span>';
+                    } else if (key === 'output') {
+                        if (val && String(val).startsWith('s3://')) {
+                            const s3Path = String(val);
+                            const fname = s3Path.split('/').pop();
+                            val = '<button class="download-output-btn" onclick="downloadOutput(\'' + s3Path.replace(/'/g, "\\'") + '\')" title="' + s3Path + '">⬇ ' + fname + '</button>';
+                        }
+                    }
+                    html += '<td>' + val + '</td>';
+                });
+                html += '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+
+            // Show last_updated below the table
+            if (lastUpdated) {
+                html += '<div style="margin-top:6px;font-size:11px;color:var(--text-secondary);font-style:italic;">Last updated: ' + lastUpdated + '</div>';
+            }
+
+            return html;
+        }
+
+        // ── Download output from S3 via n8n webhook ──
+        async function downloadOutput(s3Path) {
+            const btn = event.target.closest('.download-output-btn');
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Requesting…'; }
+
+            try {
+                const response = await authFetch(WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chatInput: 'DOWNLOAD_OUTPUT: ' + s3Path, sessionId: SESSION_ID })
+                });
+                if (!response.ok) throw new Error('Server responded with status ' + response.status);
+                const data = await response.json();
+                const reply = String(extractReply(data));
+
+                // Try to extract a presigned URL from the reply
+                const urlMatch = reply.match(/https?:\/\/[^\s"'<>]+/);
+                if (urlMatch) {
+                    // Open presigned URL in new tab to trigger download
+                    window.open(urlMatch[0], '_blank');
+                } else {
+                    showValidation('⚠️ Could not get download URL. Response: ' + reply.slice(0, 200), 'error');
+                }
+            } catch (err) {
+                showValidation('⚠️ Download failed: ' + err.message, 'error');
+            } finally {
+                if (btn) { btn.disabled = false; btn.textContent = '⬇ ' + s3Path.split('/').pop(); }
+            }
+        }
+
+        // ── Submit Task ──
+        async function submitTask() {
+            const type = document.getElementById('taskType').value;
+            const resultsArea = document.getElementById('resultsArea');
+            const resultsContent = document.getElementById('resultsContent');
+            const submitBtn = document.getElementById('submitBtn');
+
+            clearValidation();
+            resultsArea.style.display = 'none';
+
+            // ── Check Job Status ──
+            if (type === 'check-jobs') {
+                submitBtn.disabled = true;
+                submitBtn.textContent = '⏳ Loading…';
+
+                try {
+                    const response = await authFetch(WEBHOOK_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ chatInput: 'Check job status', sessionId: SESSION_ID })
+                    });
+
+                    if (!response.ok) throw new Error('Server responded with status ' + response.status);
+
+                    const data = await response.json();
+                    const reply = String(extractReply(data));
+
+                    const jobsHtml = parseJobsToTable(reply);
+                    if (jobsHtml) {
+                        resultsContent.innerHTML = jobsHtml;
+                    } else {
+                        resultsContent.innerHTML = '<p style="color:var(--text-secondary);font-size:13px;">' + reply + '</p>';
+                    }
+                    resultsArea.style.display = 'block';
+                } catch (err) {
+                    showValidation('⚠️ Could not fetch job status: ' + err.message, 'error');
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = '📊 Check Job Status';
+                }
+                return;
+            }
+
+            // ── Validate form fields ──
+            const errors = validateForm();
+            if (errors.length > 0) {
+                showValidation('⚠️ ' + errors.join('<br>⚠️ '), 'error');
+                return;
+            }
+
+            // ── Build payload matching system prompt format ──
+            const email = document.getElementById('userEmail').value.trim();
+            const fieldName = document.getElementById('fieldName').value.trim();
+            const boundary = JSON.parse(document.getElementById('boundaryInput').value.trim());
+
+            const taskPayload = {
+                user: email,
+                field: fieldName,
+                boundary: boundary,
+                task: type === 'soil-mapping' ? 'Soil Mapping' : 'Guided Sampling'
+            };
+
+            if (type === 'soil-mapping') {
+                taskPayload.soilsamples = JSON.parse(document.getElementById('soilSamples').value.trim());
+            }
+
+            const collectedParams = collectParameters(type);
+            taskPayload.parameters = collectedParams || {};
+
+            // Display boundary on map
+            displayBoundary(boundary);
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = '⏳ Submitting…';
+
+            try {
+                const response = await authFetch(WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chatInput: JSON.stringify(taskPayload),
+                        sessionId: SESSION_ID
+                    })
+                });
+
+                if (!response.ok) throw new Error('Server responded with status ' + response.status);
+
+                const data = await response.json();
+                const reply = String(extractReply(data));
+
+                showValidation('✅ Task submitted successfully!', 'success');
+                resultsContent.innerHTML = '<p style="font-size:13px;color:var(--text-primary);line-height:1.6;">' + reply + '</p>';
+                resultsArea.style.display = 'block';
+            } catch (err) {
+                showValidation('⚠️ Submission failed: ' + err.message, 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Task';
+            }
+        }
+
+        // ── Sample Upload & Verification ──
+        let parsedSamples = null;
+        let verifiedSamples = null;
+        let sampleVerified = false;
+        let rawSampleText = null;
+        let originalParsedSamples = null;
+
+        // ── Boundary Upload & Verification ──
+        let boundaryVerified = false;
+        let validatedBoundaries = null;   // { geometry: [], FieldName: [] }
+        let selectedBoundaryIdx = 0;
+        let rawBoundaryText = null;
+
+        function readFileAs(file, mode) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = e => resolve(e.target.result);
+                reader.onerror = () => reject(new Error('Failed to read file'));
+                if (mode === 'text') reader.readAsText(file);
+                else reader.readAsArrayBuffer(file);
+            });
+        }
+
+        async function parsePDFFile(arrayBuffer) {
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let text = '';
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const content = await page.getTextContent();
+                text += content.items.map(item => item.str).join(' ') + '\n';
+            }
+            return text.trim();
+        }
+
+        function updateSubmitState() {
+            const type = document.getElementById('taskType').value;
+            const btn = document.getElementById('submitBtn');
+            if (!btn) return;
+            if (type === 'soil-mapping') {
+                const ready = sampleVerified && boundaryVerified;
+                btn.disabled = !ready;
+                if (ready) {
+                    btn.textContent = '✅ Submit Verified Task';
+                } else if (!boundaryVerified && !sampleVerified) {
+                    btn.textContent = 'Submit Task (verify boundary & samples first)';
+                } else if (!boundaryVerified) {
+                    btn.textContent = 'Submit Task (verify boundary first)';
+                } else {
+                    btn.textContent = 'Submit Task (verify samples first)';
+                }
+            } else if (type === 'guided-sampling') {
+                btn.disabled = !boundaryVerified;
+                btn.textContent = boundaryVerified ? '✅ Submit Verified Task' : 'Submit Task (verify boundary first)';
+            }
+        }
+
+        async function handleSampleFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const ext = file.name.split('.').pop().toLowerCase();
+
+            // Show processing state
+            document.getElementById('sampleFileName').textContent = '⏳ Processing ' + file.name + '…';
+            document.getElementById('sampleFileInfo').style.display = 'flex';
+            document.getElementById('sampleDropZone').style.display = 'none';
+            document.getElementById('samplePreview').style.display = 'none';
+            document.getElementById('verificationPanel').style.display = 'none';
+
+            // Reset state
+            parsedSamples = null;
+            rawSampleText = null;
+            verifiedSamples = null;
+            originalParsedSamples = null;
+            sampleVerified = false;
+            document.getElementById('soilSamples').value = '';
+            updateSubmitState();
+
+            try {
+                if (ext === 'pdf') {
+                    const buf = await readFileAs(file, 'arraybuffer');
+                    rawSampleText = await parsePDFFile(new Uint8Array(buf));
+                    if (!rawSampleText) throw new Error('Could not extract text from PDF.');
+                } else if (ext === 'csv' || ext === 'tsv') {
+                    const text = await readFileAs(file, 'text');
+                    parsedSamples = parseCSV(text, ext === 'tsv' ? '\t' : ',');
+                } else if (ext === 'json' || ext === 'geojson') {
+                    const text = await readFileAs(file, 'text');
+                    const parsed = JSON.parse(text);
+                    // Check if it's a column-array dict or GeoJSON FeatureCollection
+                    if (parsed && parsed.type === 'FeatureCollection' && Array.isArray(parsed.features)) {
+                        // Convert GeoJSON features to column-array format
+                        const feats = parsed.features.filter(f => f.properties);
+                        if (feats.length === 0) throw new Error('GeoJSON has no features with properties.');
+                        const cols = new Set();
+                        feats.forEach(f => Object.keys(f.properties).forEach(k => cols.add(k)));
+                        if (feats[0].geometry && feats[0].geometry.coordinates) {
+                            cols.add('longitude'); cols.add('latitude');
+                        }
+                        const data = {};
+                        cols.forEach(c => { data[c] = []; });
+                        feats.forEach(f => {
+                            cols.forEach(c => {
+                                if (c === 'longitude' && f.geometry && f.geometry.coordinates) data[c].push(f.geometry.coordinates[0]);
+                                else if (c === 'latitude' && f.geometry && f.geometry.coordinates) data[c].push(f.geometry.coordinates[1]);
+                                else data[c].push(f.properties[c] !== undefined ? f.properties[c] : null);
+                            });
+                        });
+                        parsedSamples = data;
+                    } else if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                        // Assume column-array dict format
+                        parsedSamples = parsed;
+                    } else {
+                        // Send raw JSON text to AI for interpretation
+                        rawSampleText = text;
+                    }
+                } else if (ext === 'xlsx' || ext === 'xls' || ext === 'ods') {
+                    const buf = await readFileAs(file, 'arraybuffer');
+                    parsedSamples = parseExcelFile(new Uint8Array(buf));
+                } else {
+                    // txt, doc, docx, and any other format — read as text and send to AI
+                    const text = await readFileAs(file, 'text');
+                    if (!text || text.trim().length === 0) throw new Error('File is empty or unreadable.');
+                    rawSampleText = text.trim();
+                }
+
+                if (parsedSamples && Object.keys(parsedSamples).length === 0) {
+                    throw new Error('No data found in the uploaded file.');
+                }
+
+                document.getElementById('sampleFileName').textContent = '✓ ' + file.name;
+
+                // Auto-trigger verification
+                await verifySamples();
+            } catch (err) {
+                showValidation('⚠️ Error processing file: ' + err.message, 'error');
+                document.getElementById('sampleFileInfo').style.display = 'none';
+                document.getElementById('sampleDropZone').style.display = '';
+            }
+        }
+
+        function parseCSV(text, delimiter) {
+            if (!delimiter) delimiter = ',';
+            const lines = text.trim().split(/\r?\n/);
+            if (lines.length < 2) throw new Error('File must have a header row and at least one data row.');
+            const headers = lines[0].split(delimiter).map(h => h.trim().replace(/^"|"$/g, ''));
+            const data = {};
+            headers.forEach(h => { data[h] = []; });
+            for (let i = 1; i < lines.length; i++) {
+                if (!lines[i].trim()) continue;
+                const row = lines[i].split(delimiter);
+                headers.forEach((h, j) => {
+                    let v = (row[j] || '').trim().replace(/^"|"$/g, '');
+                    const num = parseFloat(v);
+                    data[h].push(v === '' ? null : (isNaN(num) ? v : num));
+                });
+            }
+            return data;
+        }
+
+        function parseExcelFile(arrayBuffer) {
+            const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet);
+            if (rows.length === 0) throw new Error('Spreadsheet is empty.');
+            const data = {};
+            Object.keys(rows[0]).forEach(k => { data[k] = []; });
+            rows.forEach(row => {
+                Object.keys(data).forEach(k => {
+                    data[k].push(row[k] !== undefined ? row[k] : null);
+                });
+            });
+            return data;
+        }
+
+        function showSamplePreview(data) {
+            const container = document.getElementById('samplePreview');
+            const cols = Object.keys(data);
+            if (cols.length === 0) { container.style.display = 'none'; return; }
+            const nRows = data[cols[0]].length;
+
+            let html = '<div class="sample-toolbar">';
+            html += '<button type="button" class="tbtn" onclick="syncAndSaveTable()">\ud83d\udcbe Save Changes</button>';
+            html += '<button type="button" class="tbtn" onclick="downloadCSV()">\ud83d\udce5 Download CSV</button>';
+            html += '<span class="row-count-info">' + nRows + ' rows \u00d7 ' + cols.length + ' cols</span>';
+            html += '</div>';
+
+            html += '<div class="editable-wrap"><table class="editable-table" id="editableTable"><thead><tr>';
+            cols.forEach((c, ci) => {
+                html += `<th>${c} <span class="del-col" title="Delete column" onclick="deleteColumn(${ci})">&times;</span></th>`;
+            });
+            html += '<th style="width:30px;"></th>';
+            html += '</tr></thead><tbody>';
+            for (let i = 0; i < nRows; i++) {
+                html += '<tr>';
+                cols.forEach(c => {
+                    const v = data[c][i];
+                    html += `<td contenteditable="true">${v !== null && v !== undefined ? v : ''}</td>`;
+                });
+                html += `<td class="row-actions"><span class="del-row" title="Delete row" onclick="deleteRow(${i})">&times;</span></td>`;
+                html += '</tr>';
+            }
+            html += '</tbody></table></div>';
+
+            container.innerHTML = html;
+            container.style.display = 'block';
+        }
+
+        function removeSampleFile() {
+            parsedSamples = null;
+            rawSampleText = null;
+            verifiedSamples = null;
+            originalParsedSamples = null;
+            sampleVerified = false;
+            document.getElementById('sampleFileInput').value = '';
+            document.getElementById('soilSamples').value = '';
+            document.getElementById('sampleFileInfo').style.display = 'none';
+            document.getElementById('sampleDropZone').style.display = '';
+            document.getElementById('samplePreview').style.display = 'none';
+            document.getElementById('verifyBtn').style.display = 'none';
+            document.getElementById('verificationPanel').style.display = 'none';
+            updateSubmitState();
+        }
+
+        function tryDisplaySamplesOnMap(data) {
+            const keys = Object.keys(data);
+            const latKey = keys.find(k => ['latitude', 'lat', 'y', 'y_coord'].includes(k.toLowerCase()));
+            const lonKey = keys.find(k => ['longitude', 'lon', 'lng', 'long', 'x', 'x_coord'].includes(k.toLowerCase()));
+            if (!latKey || !lonKey) return;
+            const features = [];
+            const n = data[latKey].length;
+            for (let i = 0; i < n; i++) {
+                const lat = parseFloat(data[latKey][i]);
+                const lon = parseFloat(data[lonKey][i]);
+                if (isNaN(lat) || isNaN(lon)) continue;
+                const props = {};
+                keys.forEach(k => { props[k] = data[k][i]; });
+                features.push({
+                    type: 'Feature',
+                    geometry: { type: 'Point', coordinates: [lon, lat] },
+                    properties: props
+                });
+            }
+            if (features.length > 0) {
+                const geojson = { type: 'FeatureCollection', features };
+                displaySamples(geojson);
+                if (!boundaryLayer) {
+                    map.fitBounds(samplesLayer.getBounds(), { padding: [30, 30] });
+                }
+            }
+        }
+
+        async function verifySamples() {
+            if (!parsedSamples && !rawSampleText) {
+                showValidation('⚠️ Please upload a soil samples file first.', 'error');
+                return;
+            }
+            const verifyBtn = document.getElementById('verifyBtn');
+            const panel = document.getElementById('verificationPanel');
+            if (verifyBtn) { verifyBtn.disabled = true; verifyBtn.textContent = '⏳ Verifying…'; }
+            panel.innerHTML = '<div class="verification-panel"><div class="vp-header" style="background:var(--syngenta-light);color:var(--syngenta-dark);justify-content:center;">⏳ Verifying & extracting soil data…</div></div>';
+            panel.style.display = 'block';
+            clearValidation();
+
+            const chatInput = parsedSamples
+                ? 'VERIFY_SAMPLES: ' + JSON.stringify(parsedSamples)
+                : 'VERIFY_SAMPLES: ' + rawSampleText;
+
+            try {
+                const response = await authFetch(WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chatInput, sessionId: SESSION_ID })
+                });
+                if (!response.ok) throw new Error('Server responded with status ' + response.status);
+                const data = await response.json();
+                const reply = extractReply(data);
+                console.log('[verifySamples] typeof reply:', typeof reply, '| keys:', typeof reply === 'object' && reply ? Object.keys(reply) : 'N/A');
+                displayVerificationResults(reply);
+            } catch (err) {
+                showValidation('⚠️ Verification failed: ' + err.message, 'error');
+                panel.style.display = 'none';
+            } finally {
+                if (verifyBtn) {
+                    verifyBtn.disabled = false;
+                    verifyBtn.textContent = '🔄 Re-verify Samples';
+                    verifyBtn.style.display = 'block';
+                }
+            }
+        }
+
+        function displayVerificationResults(reply) {
+            const panel = document.getElementById('verificationPanel');
+            let result = null;
+
+            // If reply is already a parsed object with expected keys, use directly
+            if (reply && typeof reply === 'object' && !Array.isArray(reply) && 'success' in reply) {
+                result = reply;
+                console.log('[displayVerification] reply was already an object');
+            }
+
+            // Convert to string for text-based parsing
+            var replyStr = (typeof reply === 'string') ? reply : JSON.stringify(reply, null, 2);
+            var cleaned = replyStr.trim()
+                .replace(/^\uFEFF/, '')  // BOM
+                .replace(/[\u200B\u200C\u200D\uFEFF]/g, '')  // zero-width chars
+                .replace(/\r\n/g, '\n');  // normalize newlines
+
+            // Strategy 1: indexOf-based code block extraction (most reliable)
+            if (!result) {
+                var cbStart = cleaned.indexOf('```');
+                if (cbStart !== -1) {
+                    var lineEnd = cleaned.indexOf('\n', cbStart);
+                    var cbEnd = cleaned.lastIndexOf('```');
+                    if (lineEnd !== -1 && cbEnd > lineEnd) {
+                        var inner = cleaned.substring(lineEnd + 1, cbEnd).trim();
+                        try { result = JSON.parse(inner); console.log('[displayVerification] Strategy 1 (indexOf code block) succeeded'); }
+                        catch (e) { console.warn('[displayVerification] Strategy 1 failed:', e.message, '| first 200 chars:', inner.substring(0, 200)); }
+                    }
+                }
+            }
+
+            // Strategy 2: regex code block
+            if (!result) {
+                var cbm = cleaned.match(/```(?:json)?\s*([\s\S]+?)\s*```/);
+                if (cbm) {
+                    try { result = JSON.parse(cbm[1].trim()); console.log('[displayVerification] Strategy 2 (regex code block) succeeded'); }
+                    catch (e) { console.warn('[displayVerification] Strategy 2 failed:', e.message); }
+                }
+            }
+
+            // Strategy 3: direct parse
+            if (!result) {
+                try { result = JSON.parse(cleaned); console.log('[displayVerification] Strategy 3 (direct parse) succeeded'); }
+                catch (e) { /* expected for non-JSON text */ }
+            }
+
+            // Strategy 4: find first { to last }
+            if (!result) {
+                var first = cleaned.indexOf('{');
+                var last = cleaned.lastIndexOf('}');
+                if (first !== -1 && last > first) {
+                    try { result = JSON.parse(cleaned.substring(first, last + 1)); console.log('[displayVerification] Strategy 4 (brace extraction) succeeded'); }
+                    catch (e) { console.warn('[displayVerification] Strategy 4 failed:', e.message); }
+                }
+            }
+
+            // Strategy 5: balanced-brace walk from {"success"
+            if (!result) {
+                var s = cleaned.search(/\{\s*"success"/);
+                if (s !== -1) {
+                    var sub = cleaned.substring(s);
+                    var d = 0, end = -1;
+                    for (var i = 0; i < sub.length; i++) {
+                        if (sub[i] === '{') d++;
+                        else if (sub[i] === '}') { d--; if (d === 0) { end = i; break; } }
+                    }
+                    if (end > 0) {
+                        try { result = JSON.parse(sub.substring(0, end + 1)); console.log('[displayVerification] Strategy 5 (balanced brace) succeeded'); }
+                        catch (e) { console.warn('[displayVerification] Strategy 5 failed:', e.message); }
+                    }
+                }
+            }
+
+            // Strategy 6: handle double-escaped JSON (literal \n and \" in the string)
+            if (!result && (cleaned.indexOf('\\n') !== -1 || cleaned.indexOf('\\"') !== -1)) {
+                var unesc = cleaned.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t');
+                var f2 = unesc.indexOf('{'), l2 = unesc.lastIndexOf('}');
+                if (f2 !== -1 && l2 > f2) {
+                    try { result = JSON.parse(unesc.substring(f2, l2 + 1)); console.log('[displayVerification] Strategy 6 (double-unescape) succeeded'); }
+                    catch (e) { console.warn('[displayVerification] Strategy 6 failed:', e.message); }
+                }
+            }
+
+            // Validate result has expected structure
+            if (result && (typeof result !== 'object' || Array.isArray(result))) {
+                console.warn('[displayVerification] Parsed result is not an object, discarding');
+                result = null;
+            }
+
+            console.log('[displayVerification] Final result:', result ? 'parsed OK (success=' + result.success + ')' : 'FAILED all strategies');
+
+            const escHtml = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const rawId = 'rawResp_' + Date.now();
+            const rawToggle = '<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;"><button type="button" class="tbtn" onclick="document.getElementById(\'' + rawId + '\').style.display=document.getElementById(\'' + rawId + '\').style.display===\'none\'?\'block\':\'none\'" style="font-size:11px;">\ud83d\udd27 Raw Response</button><pre id="' + rawId + '" style="display:none;font-size:11px;background:#1a1a2e;color:#e0e0e0;padding:10px;border-radius:6px;margin-top:6px;max-height:300px;overflow:auto;white-space:pre-wrap;word-break:break-all;">' + escHtml(replyStr) + '</pre></div>';
+
+            if (!result) {
+                sampleVerified = false;
+                updateSubmitState();
+                panel.innerHTML = '<div class="verification-panel"><div class="vp-header warning">\u26a0\ufe0f Could not parse verification response</div><div class="vp-body"><p style="white-space:pre-wrap;font-size:12px;">' + escHtml(replyStr) + '</p>' + rawToggle + '</div></div>';
+                panel.style.display = 'block';
+                return;
+            }
+
+            const isSuccess = result.success === 'yes';
+            const wasEdited = result.edited === 'yes';
+            const hasCorrected = result.corrected && typeof result.corrected === 'object' && Object.keys(result.corrected).length > 0;
+
+            let html = '<div class="verification-panel">';
+            if (isSuccess) {
+                html += '<div class="vp-header success">\u2705 Verification ' + (wasEdited ? 'Complete \u2014 Corrections Applied' : 'Passed \u2014 Data Looks Good') + '</div>';
+            } else {
+                html += '<div class="vp-header error">\u274c Data Quality Issues Found</div>';
+                html += '<p style="font-size:12px;color:var(--text-secondary);margin:6px 12px 0;"><em>Fix your data and re-upload, or review the errors below.</em></p>';
+            }
+
+            html += '<div class="vp-body">';
+            if (result.message) html += '<p style="margin-bottom:8px;"><strong>Summary:</strong> ' + escHtml(result.message) + '</p>';
+            if (result.warnings && result.warnings.length > 0) {
+                html += '<p style="color:#B7950B;font-weight:600;">\u26a0\ufe0f Warnings:</p><ul>';
+                result.warnings.forEach(function (w) { html += '<li>' + escHtml(w) + '</li>'; });
+                html += '</ul>';
+            }
+            if (result.errors && result.errors.length > 0) {
+                html += '<p style="color:#B91C1C;font-weight:600;">\u274c Errors:</p><ul>';
+                result.errors.forEach(function (e) { html += '<li>' + escHtml(e) + '</li>'; });
+                html += '</ul>';
+            }
+
+            if (hasCorrected) {
+                verifiedSamples = result.corrected;
+                html += '<hr style="margin:8px 0;border:none;border-top:1px solid var(--border);">';
+                html += '<div class="sample-toolbar"><span style="font-weight:600;font-size:13px;">\ud83d\udccb ' + (isSuccess ? 'Cleaned' : 'Partially Corrected') + ' Data</span>';
+                html += '<button type="button" class="tbtn" onclick="downloadCorrectedCSV()">\ud83d\udce5 Download CSV</button></div>';
+                var cols = Object.keys(result.corrected);
+                var nRows = result.corrected[cols[0]] ? result.corrected[cols[0]].length : 0;
+                html += '<div class="editable-wrap"><table class="editable-table" id="correctedTable"><thead><tr>';
+                cols.forEach(function (c) { html += '<th>' + escHtml(c) + '</th>'; });
+                html += '</tr></thead><tbody>';
+                for (var i = 0; i < nRows; i++) {
+                    html += '<tr>';
+                    cols.forEach(function (c) { var v = result.corrected[c][i]; html += '<td contenteditable="true">' + (v != null ? escHtml(v) : '') + '</td>'; });
+                    html += '</tr>';
+                }
+                html += '</tbody></table></div>';
+                html += '<div style="font-size:11px;color:var(--text-secondary);text-align:center;margin-top:4px;">' + nRows + ' rows \u00d7 ' + cols.length + ' columns</div>';
+                if (isSuccess) {
+                    html += '<div class="accept-bar"><button type="button" class="abtn accept" onclick="acceptCorrectedSamples()">\u2705 Accept & Use This Data</button>';
+                    if (parsedSamples) html += '<button type="button" class="abtn refuse" onclick="refuseCorrectedSamples()">\u21a9 Keep Original</button>';
+                    html += '</div>';
+                }
+            }
+
+            html += rawToggle + '</div></div>';
+            panel.innerHTML = html;
+            panel.style.display = 'block';
+
+            // Update data state
+            if (isSuccess) {
+                sampleVerified = true;
+                var useData = hasCorrected ? result.corrected : parsedSamples;
+                if (hasCorrected && parsedSamples) {
+                    // Save original for "Keep Original" option
+                    originalParsedSamples = {};
+                    Object.keys(parsedSamples).forEach(function (k) { originalParsedSamples[k] = parsedSamples[k].slice(); });
+                }
+                if (useData) {
+                    parsedSamples = useData;
+                    document.getElementById('soilSamples').value = JSON.stringify(useData);
+                    if (!hasCorrected) showSamplePreview(useData);
+                    tryDisplaySamplesOnMap(useData);
+                }
+            } else {
+                sampleVerified = false;
+                if (hasCorrected) tryDisplaySamplesOnMap(result.corrected);
+            }
+            updateSubmitState();
+        }
+
+        function syncCorrectedTable() {
+            const table = document.getElementById('correctedTable');
+            if (!table || !verifiedSamples) return;
+            const headers = [];
+            table.querySelectorAll('thead th').forEach(th => {
+                const text = th.textContent.trim();
+                if (text) headers.push(text);
+            });
+            const data = {};
+            headers.forEach(h => { data[h] = []; });
+            table.querySelectorAll('tbody tr').forEach(tr => {
+                const cells = tr.querySelectorAll('td[contenteditable]');
+                headers.forEach((h, i) => {
+                    const raw = cells[i]?.textContent?.trim() || '';
+                    const num = parseFloat(raw);
+                    data[h].push(raw === '' ? null : (isNaN(num) ? raw : num));
+                });
+            });
+            verifiedSamples = data;
+        }
+
+        function acceptCorrectedSamples() {
+            syncCorrectedTable();
+            if (!verifiedSamples) return;
+            parsedSamples = verifiedSamples;
+            sampleVerified = true;
+            document.getElementById('soilSamples').value = JSON.stringify(parsedSamples);
+            showSamplePreview(parsedSamples);
+            tryDisplaySamplesOnMap(parsedSamples);
+            document.getElementById('verificationPanel').style.display = 'none';
+            updateSubmitState();
+            showValidation('\u2705 Corrections accepted! You can further edit the table if needed.', 'success');
+        }
+
+        function downloadCorrectedCSV() {
+            syncCorrectedTable();
+            if (!verifiedSamples) return;
+            const cols = Object.keys(verifiedSamples);
+            const nRows = verifiedSamples[cols[0]].length;
+            let csv = cols.join(',') + '\n';
+            for (let i = 0; i < nRows; i++) {
+                csv += cols.map(c => {
+                    const v = verifiedSamples[c][i];
+                    if (v === null || v === undefined) return '';
+                    const s = String(v);
+                    return s.includes(',') ? '"' + s + '"' : s;
+                }).join(',') + '\n';
+            }
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'corrected_soil_samples.csv'; a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function refuseCorrectedSamples() {
+            verifiedSamples = null;
+            // Keep original data — verification was successful so submit stays enabled
+            if (originalParsedSamples) {
+                parsedSamples = originalParsedSamples;
+                originalParsedSamples = null;
+                document.getElementById('soilSamples').value = JSON.stringify(parsedSamples);
+                showSamplePreview(parsedSamples);
+                tryDisplaySamplesOnMap(parsedSamples);
+            }
+            document.getElementById('verificationPanel').style.display = 'none';
+            showValidation('\u2139\ufe0f Original data kept. You can edit the table or re-verify.', 'success');
+        }
+
+        // ── Parameter source toggle ──
+        let useServerParams = true;
+
+        function onParamSourceChange() {
+            const sel = document.querySelector('input[name="paramSource"]:checked');
+            useServerParams = sel && sel.value === 'server';
+            document.getElementById('customParamsContainer').style.display = useServerParams ? 'none' : '';
+        }
+
+        // ── Parameter mode switching ──
+        let currentParamMode = 'form';
+        function switchParamMode(mode, btn) {
+            currentParamMode = mode;
+            document.querySelectorAll('.param-tab').forEach(t => t.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('paramFormMode').style.display = mode === 'form' ? '' : 'none';
+            document.getElementById('paramJsonMode').style.display = mode === 'json' ? '' : 'none';
+            document.getElementById('paramFileMode').style.display = mode === 'file' ? '' : 'none';
+        }
+
+        function handleParamFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    document.getElementById('paramFileContent').value = JSON.stringify(parsed, null, 2);
+                    document.getElementById('paramFileName').textContent = '✓ ' + file.name;
+                } catch (err) {
+                    showValidation('⚠️ Invalid JSON parameter file: ' + err.message, 'error');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // ── Parameter defaults ──
+        const SM_DEFAULTS = {
+            'sat-soil-ray': { S2: 15, S1: 15, Planet: 5, Alos: 30, DEM: 15 },
+            'diff-2-samples-max-percent': 10,
+            'seasons-and-sats': { 'off-season': ['S2', 'S1', 'Landsat'], 'on-season': ['S2'], 'growing-season': ['S2'] },
+            'sat-ref': 'S2',
+            'sat-date': { 'default': { 'S2': ['2017-01-01', '2030-12-10'], 'S1': ['2017-01-01', '2030-12-10'], 'Landsat': ['2017-01-01', '2030-12-10'], 'Planet': ['2017-01-01', '2030-01-01'], 'Alos': ['2020-01-01', '2023-10-30'], 'Alpha': ['2030-01-01', '2030-10-30'] } },
+            'at-ndvi-field-range': { 'off-season': [[[0.1, 0.3, 25], [0.1, 0.35, 25], [0.1, 0.4]]], 'on-season': [[[0.7, 1]]], 'growing-season': [[[0.4, 0.8]]] },
+            'sat-ndvi-pixel-range': { 'off-season': [[0.1, 0.3]], 'on-season': [[0.5, 1]], 'growing-season': [[0.1, 1]] },
+            'sat-ndvi-trend': { 'growing-season': [0.01, 2] },
+            'sat-bands': { 'default': { 'S2': ['B02', 'B03', 'B04', 'B05', 'B06', 'B07', 'B08', 'B8A', 'B11', 'B12'], 'S1': ['VV'], 'Landsat': ['B10'], 'Planet': ['coastal_blue', 'blue', 'green', 'green_i', 'yellow', 'red', 'rededge', 'nir'], 'Alos': ['HH'] } },
+            'moran-nfeatures-ratio-min': 0.5,
+            'moran-i-threshold': [0.4, 0.5, 0.6],
+            'moran-dist': [50, 75, 100, 125, 150]
+        };
+        const GS_DEFAULTS = {
+            'samples-density-min': 0.2,
+            'samples-density-max': 0.25,
+            'boundary-buffer': 50,
+            'inter-sample-min-dist': 60,
+            'add-samples-ratio': 0.1,
+            'add-samples-dist': 30,
+            'n-clusters-opt-threshold': 0.03,
+            'moran-i-threshold': [0.4, 0.3],
+            'moran-dist': [75],
+            'number-clusters-max': 200,
+            'area-min-ratio': 0.005,
+            'seasons-and-sats': { 'bare+pick': ['S2', 'S1', 'Landsat'] },
+            'sat-ref': 'S2',
+            'sat-date': { 'default': { 'S2': ['2017-01-01', '2030-12-10'], 'S1': ['2017-01-01', '2030-12-10'], 'Landsat': ['2017-01-01', '2030-12-10'], 'Planet': ['2017-01-01', '2030-01-01'], 'Alos': ['2020-01-01', '2023-10-30'] } },
+            'dem-bands': ['slope', 'hillshaded'],
+            'pca-param-n-compenents': { 'default': { 'S2': [0.8, 4, 12], 'S1': [0.7, 1, 2], 'Planet': [0.9, 4, 12], 'Alos': [0.5, 3, 6], 'Landsat': [0.8, 2, 4] } }
+        };
+
+        function resetParamDefaults(taskType) {
+            if (taskType === 'soil-mapping') {
+                document.getElementById('sm_sat_soil_ray').value = JSON.stringify(SM_DEFAULTS['sat-soil-ray']);
+                document.getElementById('sm_diff_2_samples').value = SM_DEFAULTS['diff-2-samples-max-percent'];
+                document.getElementById('sm_seasons_and_sats').value = JSON.stringify(SM_DEFAULTS['seasons-and-sats']);
+                document.getElementById('sm_sat_ref').value = SM_DEFAULTS['sat-ref'];
+                document.getElementById('sm_sat_date').value = JSON.stringify(SM_DEFAULTS['sat-date']);
+                document.getElementById('sm_ndvi_field_range').value = JSON.stringify(SM_DEFAULTS['at-ndvi-field-range']);
+                document.getElementById('sm_ndvi_pixel_range').value = JSON.stringify(SM_DEFAULTS['sat-ndvi-pixel-range']);
+                document.getElementById('sm_ndvi_trend').value = JSON.stringify(SM_DEFAULTS['sat-ndvi-trend']);
+                document.getElementById('sm_sat_bands').value = JSON.stringify(SM_DEFAULTS['sat-bands']);
+                document.getElementById('sm_moran_nfeat').value = SM_DEFAULTS['moran-nfeatures-ratio-min'];
+                document.getElementById('sm_moran_i').value = SM_DEFAULTS['moran-i-threshold'].join(', ');
+                document.getElementById('sm_moran_dist').value = SM_DEFAULTS['moran-dist'].join(', ');
+            } else {
+                document.getElementById('gs_density_min').value = GS_DEFAULTS['samples-density-min'];
+                document.getElementById('gs_density_max').value = GS_DEFAULTS['samples-density-max'];
+                document.getElementById('gs_boundary_buffer').value = GS_DEFAULTS['boundary-buffer'];
+                document.getElementById('gs_inter_sample').value = GS_DEFAULTS['inter-sample-min-dist'];
+                document.getElementById('gs_add_ratio').value = GS_DEFAULTS['add-samples-ratio'];
+                document.getElementById('gs_add_dist').value = GS_DEFAULTS['add-samples-dist'];
+                document.getElementById('gs_cluster_thresh').value = GS_DEFAULTS['n-clusters-opt-threshold'];
+                document.getElementById('gs_moran_i').value = GS_DEFAULTS['moran-i-threshold'].join(', ');
+                document.getElementById('gs_moran_dist').value = GS_DEFAULTS['moran-dist'].join(', ');
+                document.getElementById('gs_clusters_max').value = GS_DEFAULTS['number-clusters-max'];
+                document.getElementById('gs_area_min').value = GS_DEFAULTS['area-min-ratio'];
+                document.getElementById('gs_seasons_and_sats').value = JSON.stringify(GS_DEFAULTS['seasons-and-sats']);
+                document.getElementById('gs_sat_ref').value = GS_DEFAULTS['sat-ref'];
+                document.getElementById('gs_sat_date').value = JSON.stringify(GS_DEFAULTS['sat-date']);
+                document.getElementById('gs_dem_bands').value = GS_DEFAULTS['dem-bands'].join(', ');
+                document.getElementById('gs_pca_params').value = JSON.stringify(GS_DEFAULTS['pca-param-n-compenents']);
+            }
+        }
+
+        function parseCSVList(str) {
+            return str.split(',').map(s => { const n = parseFloat(s.trim()); return isNaN(n) ? s.trim() : n; }).filter(v => v !== '');
+        }
+
+        function safeParseJSON(el) {
+            try { return JSON.parse(el.value); } catch (e) { return el.value.trim(); }
+        }
+
+        function collectParameters(taskType) {
+            // If using server defaults, send empty parameters
+            if (useServerParams) return {};
+
+            const mode = currentParamMode;
+            if (mode === 'json') {
+                const raw = document.getElementById('paramsInput').value.trim();
+                return raw ? JSON.parse(raw) : null;
+            }
+            if (mode === 'file') {
+                const raw = document.getElementById('paramFileContent').value.trim();
+                return raw ? JSON.parse(raw) : null;
+            }
+            // form mode
+            if (taskType === 'soil-mapping') {
+                return {
+                    'sat-soil-ray': safeParseJSON(document.getElementById('sm_sat_soil_ray')),
+                    'diff-2-samples-max-percent': parseFloat(document.getElementById('sm_diff_2_samples').value),
+                    'seasons-and-sats': safeParseJSON(document.getElementById('sm_seasons_and_sats')),
+                    'sat-ref': document.getElementById('sm_sat_ref').value.trim(),
+                    'sat-date': safeParseJSON(document.getElementById('sm_sat_date')),
+                    'at-ndvi-field-range': safeParseJSON(document.getElementById('sm_ndvi_field_range')),
+                    'sat-ndvi-pixel-range': safeParseJSON(document.getElementById('sm_ndvi_pixel_range')),
+                    'sat-ndvi-trend': safeParseJSON(document.getElementById('sm_ndvi_trend')),
+                    'sat-bands': safeParseJSON(document.getElementById('sm_sat_bands')),
+                    'moran-nfeatures-ratio-min': parseFloat(document.getElementById('sm_moran_nfeat').value),
+                    'moran-i-threshold': parseCSVList(document.getElementById('sm_moran_i').value),
+                    'moran-dist': parseCSVList(document.getElementById('sm_moran_dist').value)
+                };
+            } else {
+                return {
+                    'samples-density-min': parseFloat(document.getElementById('gs_density_min').value),
+                    'samples-density-max': parseFloat(document.getElementById('gs_density_max').value),
+                    'boundary-buffer': parseFloat(document.getElementById('gs_boundary_buffer').value),
+                    'inter-sample-min-dist': parseFloat(document.getElementById('gs_inter_sample').value),
+                    'add-samples-ratio': parseFloat(document.getElementById('gs_add_ratio').value),
+                    'add-samples-dist': parseFloat(document.getElementById('gs_add_dist').value),
+                    'n-clusters-opt-threshold': parseFloat(document.getElementById('gs_cluster_thresh').value),
+                    'moran-i-threshold': parseCSVList(document.getElementById('gs_moran_i').value),
+                    'moran-dist': parseCSVList(document.getElementById('gs_moran_dist').value),
+                    'number-clusters-max': parseInt(document.getElementById('gs_clusters_max').value),
+                    'area-min-ratio': parseFloat(document.getElementById('gs_area_min').value),
+                    'seasons-and-sats': safeParseJSON(document.getElementById('gs_seasons_and_sats')),
+                    'sat-ref': document.getElementById('gs_sat_ref').value.trim(),
+                    'sat-date': safeParseJSON(document.getElementById('gs_sat_date')),
+                    'dem-bands': document.getElementById('gs_dem_bands').value.split(',').map(s => s.trim()).filter(Boolean),
+                    'pca-param-n-compenents': safeParseJSON(document.getElementById('gs_pca_params'))
+                };
+            }
+        }
+
+        // ── Table editing helpers ──
+        function syncTableToData() {
+            const table = document.getElementById('editableTable');
+            if (!table) return;
+            const headers = [];
+            table.querySelectorAll('thead th').forEach(th => {
+                const text = th.textContent.replace('\u00d7', '').trim();
+                if (text) headers.push(text);
+            });
+            const data = {};
+            headers.forEach(h => { data[h] = []; });
+            table.querySelectorAll('tbody tr').forEach(tr => {
+                const cells = tr.querySelectorAll('td[contenteditable]');
+                headers.forEach((h, i) => {
+                    const raw = cells[i]?.textContent?.trim() || '';
+                    const num = parseFloat(raw);
+                    data[h].push(raw === '' ? null : (isNaN(num) ? raw : num));
+                });
+            });
+            parsedSamples = data;
+            document.getElementById('soilSamples').value = JSON.stringify(data);
+        }
+
+        function syncAndSaveTable() {
+            syncTableToData();
+            tryDisplaySamplesOnMap(parsedSamples);
+            showValidation('\u2705 Table changes saved. Map updated.', 'success');
+        }
+
+        function deleteColumn(colIdx) {
+            syncTableToData();
+            const cols = Object.keys(parsedSamples);
+            if (cols.length <= 1) { showValidation('\u26a0\ufe0f Cannot delete the last column.', 'error'); return; }
+            delete parsedSamples[cols[colIdx]];
+            document.getElementById('soilSamples').value = JSON.stringify(parsedSamples);
+            showSamplePreview(parsedSamples);
+            tryDisplaySamplesOnMap(parsedSamples);
+        }
+
+        function deleteRow(rowIdx) {
+            syncTableToData();
+            const cols = Object.keys(parsedSamples);
+            const nRows = parsedSamples[cols[0]].length;
+            if (nRows <= 1) { showValidation('\u26a0\ufe0f Cannot delete the last row.', 'error'); return; }
+            cols.forEach(c => { parsedSamples[c].splice(rowIdx, 1); });
+            document.getElementById('soilSamples').value = JSON.stringify(parsedSamples);
+            showSamplePreview(parsedSamples);
+            tryDisplaySamplesOnMap(parsedSamples);
+        }
+
+        function downloadCSV() {
+            syncTableToData();
+            if (!parsedSamples) return;
+            const cols = Object.keys(parsedSamples);
+            const nRows = parsedSamples[cols[0]].length;
+            let csv = cols.join(',') + '\n';
+            for (let i = 0; i < nRows; i++) {
+                csv += cols.map(c => {
+                    const v = parsedSamples[c][i];
+                    if (v === null || v === undefined) return '';
+                    const s = String(v);
+                    return s.includes(',') ? '"' + s + '"' : s;
+                }).join(',') + '\n';
+            }
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'soil_samples.csv'; a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // ── IDW Interpolation ──
+        function toggleInterpolation() {
+            const varName = document.getElementById('soilVarSelect').value;
+            if (document.getElementById('interpToggle').checked) {
+                renderIDWLayer(varName);
+            } else {
+                if (interpLayer) { map.removeLayer(interpLayer); interpLayer = null; }
+            }
+        }
+
+        function interpColor(ratio) {
+            ratio = Math.max(0, Math.min(1, ratio));
+            let r, g, b;
+            if (ratio < 0.5) {
+                const t = ratio * 2;
+                r = Math.round(46 + t * (241 - 46));
+                g = Math.round(204 + t * (196 - 204));
+                b = Math.round(113 + t * (15 - 113));
+            } else {
+                const t = (ratio - 0.5) * 2;
+                r = Math.round(241 + t * (231 - 241));
+                g = Math.round(196 + t * (76 - 196));
+                b = Math.round(15 + t * (60 - 15));
+            }
+            return [r, g, b];
+        }
+
+        function computeIDW(points, bounds, gridSize, power) {
+            const west = bounds.getWest(), east = bounds.getEast();
+            const south = bounds.getSouth(), north = bounds.getNorth();
+            const dx = (east - west) / gridSize;
+            const dy = (north - south) / gridSize;
+            const grid = [];
+            for (let j = 0; j < gridSize; j++) {
+                const row = [];
+                const lat = north - (j + 0.5) * dy;
+                for (let i = 0; i < gridSize; i++) {
+                    const lng = west + (i + 0.5) * dx;
+                    let sumW = 0, sumWV = 0;
+                    for (const p of points) {
+                        const d = Math.sqrt(Math.pow(lat - p.lat, 2) + Math.pow(lng - p.lng, 2));
+                        if (d < 1e-10) { sumW = 1; sumWV = p.val; break; }
+                        const w = 1 / Math.pow(d, power);
+                        sumW += w; sumWV += w * p.val;
+                    }
+                    row.push(sumW > 0 ? sumWV / sumW : 0);
+                }
+                grid.push(row);
+            }
+            return grid;
+        }
+
+        function renderIDWLayer(varName) {
+            if (interpLayer) { map.removeLayer(interpLayer); interpLayer = null; }
+            if (!currentSamples || !varName) return;
+            const chk = document.getElementById('interpToggle');
+            if (!chk || !chk.checked) return;
+
+            const points = [];
+            currentSamples.features.forEach(f => {
+                const v = f.properties[varName];
+                if (v != null && !isNaN(v)) {
+                    points.push({ lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0], val: v });
+                }
+            });
+            if (points.length < 3) return;
+
+            const vals = points.map(p => p.val);
+            const vmin = Math.min(...vals), vmax = Math.max(...vals);
+            const lats = points.map(p => p.lat), lngs = points.map(p => p.lng);
+            const latPad = (Math.max(...lats) - Math.min(...lats)) * 0.15 || 0.01;
+            const lngPad = (Math.max(...lngs) - Math.min(...lngs)) * 0.15 || 0.01;
+            const bounds = L.latLngBounds(
+                [Math.min(...lats) - latPad, Math.min(...lngs) - lngPad],
+                [Math.max(...lats) + latPad, Math.max(...lngs) + lngPad]
+            );
+
+            const gridSize = 80;
+            const grid = computeIDW(points, bounds, gridSize, 2);
+
+            const canvas = document.createElement('canvas');
+            canvas.width = gridSize; canvas.height = gridSize;
+            const ctx = canvas.getContext('2d');
+            const imgData = ctx.createImageData(gridSize, gridSize);
+            for (let j = 0; j < gridSize; j++) {
+                for (let i = 0; i < gridSize; i++) {
+                    const idx = (j * gridSize + i) * 4;
+                    const ratio = (vmax - vmin) > 0 ? (grid[j][i] - vmin) / (vmax - vmin) : 0.5;
+                    const [r, g, b] = interpColor(ratio);
+                    imgData.data[idx] = r;
+                    imgData.data[idx + 1] = g;
+                    imgData.data[idx + 2] = b;
+                    imgData.data[idx + 3] = 140;
+                }
+            }
+            ctx.putImageData(imgData, 0, 0);
+
+            interpLayer = L.imageOverlay(canvas.toDataURL(), bounds, { opacity: 0.65 }).addTo(map);
+            if (samplesLayer) samplesLayer.bringToFront();
+        }
+
+        // ── Drag & drop for sample upload ──
+        (function () {
+            const dz = document.getElementById('sampleDropZone');
+            if (!dz) return;
+            ['dragenter', 'dragover'].forEach(evt => {
+                dz.addEventListener(evt, e => { e.preventDefault(); dz.style.borderColor = 'var(--syngenta-dark)'; dz.style.background = '#d4edda'; });
+            });
+            ['dragleave', 'drop'].forEach(evt => {
+                dz.addEventListener(evt, e => { e.preventDefault(); dz.style.borderColor = ''; dz.style.background = ''; });
+            });
+            dz.addEventListener('drop', e => {
+                const file = e.dataTransfer.files[0];
+                if (file) {
+                    const input = document.getElementById('sampleFileInput');
+                    const dt = new DataTransfer();
+                    dt.items.add(file);
+                    input.files = dt.files;
+                    handleSampleFile({ target: input });
+                }
+            });
+        })();
+
+        // ── Drag & drop for boundary upload ──
+        (function () {
+            const dz = document.getElementById('boundaryDropZone');
+            if (!dz) return;
+            ['dragenter', 'dragover'].forEach(evt => {
+                dz.addEventListener(evt, e => { e.preventDefault(); dz.style.borderColor = 'var(--syngenta-dark)'; dz.style.background = '#d4edda'; });
+            });
+            ['dragleave', 'drop'].forEach(evt => {
+                dz.addEventListener(evt, e => { e.preventDefault(); dz.style.borderColor = ''; dz.style.background = ''; });
+            });
+            dz.addEventListener('drop', e => {
+                const droppedFiles = e.dataTransfer.files;
+                if (droppedFiles && droppedFiles.length > 0) {
+                    const input = document.getElementById('boundaryFileInput');
+                    const dt = new DataTransfer();
+                    for (let i = 0; i < droppedFiles.length; i++) {
+                        dt.items.add(droppedFiles[i]);
+                    }
+                    input.files = dt.files;
+                    handleBoundaryUpload({ target: input });
+                }
+            });
+        })();
+
+        // Fix map rendering after layout
+        setTimeout(() => map.invalidateSize(), 200);
+    </script>
+
+</body>
+
+</html>
