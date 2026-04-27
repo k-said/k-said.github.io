@@ -2903,24 +2903,32 @@
         // Handles both:
         //   - Array of row objects: [{user:'a', status:'success'}, ...]
         //   - Columnar object: {user:['a'], status:['success'], last_updated:'...'}
-        function parseJobsToTable(text) {
+        //   - Accepts string (JSON text) or object/array directly
+        function parseJobsToTable(input) {
             let parsed = null;
 
-            // Try direct parse
-            try { parsed = JSON.parse(text); } catch (e) { }
+            // If input is already an object or array, use it directly
+            if (typeof input === 'object' && input !== null) {
+                parsed = input;
+            } else if (typeof input === 'string') {
+                const text = input.trim();
+                // Try direct parse
+                try { parsed = JSON.parse(text); } catch (e) { }
 
-            // Try to find embedded JSON (object or array)
-            if (!parsed) {
-                const match = text.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
-                if (match) { try { parsed = JSON.parse(match[0]); } catch (e) { } }
+                // Try code block extraction
+                if (!parsed) {
+                    const codeMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+                    if (codeMatch) { try { parsed = JSON.parse(codeMatch[1]); } catch (e) { } }
+                }
+
+                // Try to find embedded JSON (object or array)
+                if (!parsed) {
+                    const match = text.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+                    if (match) { try { parsed = JSON.parse(match[0]); } catch (e) { } }
+                }
             }
 
-            // Try code block
-            if (!parsed) {
-                const codeMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-                if (codeMatch) { try { parsed = JSON.parse(codeMatch[1]); } catch (e) { } }
-            }
-
+            console.log('[parseJobsToTable] input type:', typeof input, '| parsed:', parsed);
             if (!parsed) return null;
 
             let jobs = null;
@@ -2979,6 +2987,10 @@
                 html += '<tr>';
                 displayCols.forEach(c => {
                     let val = j[c] ?? '';
+                    // Ensure val is a displayable string (avoid [object Object])
+                    if (typeof val === 'object' && val !== null) {
+                        val = JSON.stringify(val);
+                    }
                     const key = c.toLowerCase();
                     if (key === 'status') {
                         const cls = String(val).toLowerCase();
@@ -3061,16 +3073,17 @@
 
                     const data = await response.json();
                     const rawReply = extractReply(data);
-                    // If reply is already an object/array, stringify for parseJobsToTable
-                    const reply = (typeof rawReply === 'object' && rawReply !== null)
-                        ? JSON.stringify(rawReply)
-                        : String(rawReply);
+                    console.log('[check-jobs] rawReply type:', typeof rawReply, '| value:', rawReply);
 
-                    const jobsHtml = parseJobsToTable(reply);
+                    // parseJobsToTable now accepts both strings and objects directly
+                    const jobsHtml = parseJobsToTable(rawReply);
                     if (jobsHtml) {
                         resultsContent.innerHTML = jobsHtml;
                     } else {
-                        resultsContent.innerHTML = '<p style="color:var(--text-secondary);font-size:13px;">' + reply + '</p>';
+                        const displayText = (typeof rawReply === 'object' && rawReply !== null)
+                            ? JSON.stringify(rawReply, null, 2)
+                            : String(rawReply);
+                        resultsContent.innerHTML = '<pre style="color:var(--text-secondary);font-size:12px;white-space:pre-wrap;word-break:break-word;">' + displayText + '</pre>';
                     }
                     resultsArea.style.display = 'block';
                 } catch (err) {
