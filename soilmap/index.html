@@ -2901,13 +2901,12 @@
         }
 
         // ── Extract jobs data from any response shape ──
-        // The n8n webhook typically returns [{output: "...json string..."}]
-        // The jobs JSON is: {user:[...], status:[...], output:[...], last_updated:"..."}
+        // n8n response: {output: "```json\n[{result: {user:[...], ...}}]\n```"}
+        // Target: the columnar jobs object {user:[...], status:[...], last_updated:"..."}
         function extractJobsData(data) {
-            // Helper: check if an object is actual jobs data (columnar with known job keys)
+            // Check if an object is columnar jobs data
             function isJobsObject(obj) {
                 if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return false;
-                // Must have at least 2 keys with array values, and one of them should be a known job key
                 const knownKeys = ['user', 'status', 'task', 'field', 'submitted_time', 'output'];
                 const keys = Object.keys(obj);
                 const hasArrays = keys.filter(k => Array.isArray(obj[k])).length >= 2;
@@ -2915,60 +2914,86 @@
                 return hasArrays && hasKnownKey;
             }
 
-            // Helper: try to parse jobs object from a string
+            // Unwrap common wrappers: [{result: X}] → X, {result: X} → X, [X] → X
+            function unwrap(obj) {
+                if (!obj) return obj;
+                // Array: check first element
+                if (Array.isArray(obj)) {
+                    if (obj.length === 0) return null;
+                    const first = obj[0];
+                    // [{result: {...}}] → unwrap result
+                    if (first && typeof first === 'object' && first.result) {
+                        return unwrap(first.result);
+                    }
+                    // [{user:[...], ...}] → unwrap first item
+                    if (isJobsObject(first)) return first;
+                    return unwrap(first);
+                }
+                // {result: {...}} → unwrap result
+                if (typeof obj === 'object' && !Array.isArray(obj) && obj.result && typeof obj.result === 'object') {
+                    return unwrap(obj.result);
+                }
+                return obj;
+            }
+
+            // Try to extract jobs from a string (JSON or code block)
             function parseFromString(str) {
                 if (typeof str !== 'string') return null;
                 str = str.trim();
                 if (!str) return null;
 
-                // Try direct JSON parse
-                try {
-                    const obj = JSON.parse(str);
-                    if (isJobsObject(obj)) return obj;
-                } catch (e) { }
+                let candidates = [];
 
-                // Try code block extraction: ```json ... ```
+                // Try direct parse
+                try { candidates.push(JSON.parse(str)); } catch (e) { }
+
+                // Try code block: ```json ... ```
                 const cbMatch = str.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
                 if (cbMatch) {
-                    try {
-                        const obj = JSON.parse(cbMatch[1].trim());
-                        if (isJobsObject(obj)) return obj;
-                    } catch (e) { }
+                    try { candidates.push(JSON.parse(cbMatch[1].trim())); } catch (e) { }
                 }
 
-                // Try to find embedded JSON object { ... }
+                // Try embedded { ... }
                 const first = str.indexOf('{');
                 const last = str.lastIndexOf('}');
                 if (first !== -1 && last > first) {
-                    try {
-                        const obj = JSON.parse(str.substring(first, last + 1));
-                        if (isJobsObject(obj)) return obj;
-                    } catch (e) { }
+                    try { candidates.push(JSON.parse(str.substring(first, last + 1))); } catch (e) { }
                 }
 
+                // Check each candidate after unwrapping
+                for (const c of candidates) {
+                    const unwrapped = unwrap(c);
+                    if (isJobsObject(unwrapped)) return unwrapped;
+                }
                 return null;
             }
 
-            console.log('[extractJobsData] input type:', typeof data, Array.isArray(data) ? '(array)' : '');
+            console.log('[extractJobsData] input type:', typeof data, Array.isArray(data) ? '(array len=' + data.length + ')' : '');
 
-            // 1) If input is already the jobs object
+            // 1) Already the jobs object
             if (isJobsObject(data)) return data;
 
-            // 2) If input is a string containing the jobs JSON
+            // 2) Wrapped: unwrap and check
+            const unwrapped = unwrap(data);
+            if (isJobsObject(unwrapped)) return unwrapped;
+
+            // 3) String input
             if (typeof data === 'string') {
                 const result = parseFromString(data);
                 if (result) return result;
             }
 
-            // 3) n8n typical shape: [{output: "..."}] or {output: "..."}
+            // 4) Object with .output, .text, .message fields (n8n response shapes)
             const items = Array.isArray(data) ? data : [data];
             for (const item of items) {
                 if (!item || typeof item !== 'object') continue;
-                // Check .output (most common n8n response field)
+                // Check .output
                 if (item.output != null) {
                     if (isJobsObject(item.output)) return item.output;
-                    const fromOutput = parseFromString(String(item.output));
-                    if (fromOutput) return fromOutput;
+                    const uw = unwrap(item.output);
+                    if (isJobsObject(uw)) return uw;
+                    const fromStr = parseFromString(String(item.output));
+                    if (fromStr) return fromStr;
                 }
                 // Check .text
                 if (typeof item.text === 'string') {
@@ -2983,12 +3008,12 @@
                 // Check .data.output
                 if (item.data && item.data.output != null) {
                     if (isJobsObject(item.data.output)) return item.data.output;
-                    const fromDataOutput = parseFromString(String(item.data.output));
-                    if (fromDataOutput) return fromDataOutput;
+                    const fromDO = parseFromString(String(item.data.output));
+                    if (fromDO) return fromDO;
                 }
             }
 
-            // 4) Last resort: stringify the whole thing and search for the jobs JSON inside
+            // 5) Last resort: stringify and search
             try {
                 const fullStr = JSON.stringify(data);
                 const result = parseFromString(fullStr);
@@ -2996,7 +3021,7 @@
             } catch (e) { }
 
             console.warn('[extractJobsData] could not find jobs data in response');
-            return data; // return raw data so fallback display shows something useful
+            return data;
         }
 
         // ── Parse jobs JSON into table HTML ──
