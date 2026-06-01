@@ -2125,6 +2125,7 @@
             validatedBoundaries = null;
             selectedBoundaryIdx = 0;
             rawBoundaryText = null;
+            boundaryUploadFileName = file.name;
             document.getElementById('boundaryInput').value = '';
             document.getElementById('fieldName').value = '';
             updateSubmitState();
@@ -2541,10 +2542,37 @@
                 .trim();
         }
 
+        function extractFieldNameFromFileName(fileName) {
+            if (!fileName) return '';
+            // Remove file extension
+            var name = fileName.replace(/\.[^.]+$/, '');
+            // Remove common prefixes/suffixes that are not field names
+            name = name
+                .replace(/[_-]/g, ' ')           // convert separators to spaces
+                .replace(/\(.*?\)/g, '')         // remove parenthetical content
+                .replace(/\bsoil\s*samples?\b/gi, '')  // remove "soil sample(s)"
+                .replace(/\bboundary\b/gi, '')   // remove "boundary"
+                .replace(/\bfield\b/gi, '')      // remove standalone "field"
+                .replace(/\brawnames\b/gi, '')   // remove "rawnames"
+                .replace(/\badjusted\b/gi, '')   // remove "adjusted"
+                .replace(/\s+/g, ' ')            // collapse whitespace
+                .trim();
+            return name;
+        }
+
         function populateFieldName() {
             if (!validatedBoundaries || !validatedBoundaries.FieldName) return;
             const raw = validatedBoundaries.FieldName[selectedBoundaryIdx] || '';
-            const fn = cleanFieldName(raw);
+            let fn = cleanFieldName(raw);
+
+            // If field name is generic or empty, try to extract from filenames
+            if (!fn || /^Field\s*\d*$/i.test(fn)) {
+                // Try boundary file name first, then sample file name
+                var fromBoundary = extractFieldNameFromFileName(boundaryUploadFileName);
+                var fromSample = extractFieldNameFromFileName(sampleUploadFileName);
+                fn = fromBoundary || fromSample || fn;
+            }
+
             document.getElementById('fieldName').value = fn;
             document.getElementById('fieldNameGroup').style.display = 'block';
         }
@@ -3303,6 +3331,8 @@
         let validatedBoundaries = null;   // { geometry: [], FieldName: [] }
         let selectedBoundaryIdx = 0;
         let rawBoundaryText = null;
+        let boundaryUploadFileName = null;  // original filename of uploaded boundary file
+        let sampleUploadFileName = null;    // original filename of uploaded sample file
 
         function readFileAs(file, mode) {
             return new Promise((resolve, reject) => {
@@ -3365,6 +3395,7 @@
             verifiedSamples = null;
             originalParsedSamples = null;
             sampleVerified = false;
+            sampleUploadFileName = file.name;
             document.getElementById('soilSamples').value = '';
             updateSubmitState();
 
