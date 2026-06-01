@@ -3435,7 +3435,18 @@
             if (!delimiter) delimiter = ',';
             const lines = text.trim().split(/\r?\n/);
             if (lines.length < 2) throw new Error('File must have a header row and at least one data row.');
-            const headers = lines[0].split(delimiter).map(h => h.trim().replace(/^"|"$/g, ''));
+            const rawHeaders = lines[0].split(delimiter).map(h => h.trim().replace(/^"|"$/g, ''));
+            // Deduplicate column names by appending _2, _3, etc. for repeated headers
+            const headerCount = {};
+            const headers = rawHeaders.map(h => {
+                if (!headerCount[h]) {
+                    headerCount[h] = 1;
+                    return h;
+                } else {
+                    headerCount[h]++;
+                    return h + '_' + headerCount[h];
+                }
+            });
             const data = {};
             headers.forEach(h => { data[h] = []; });
             for (let i = 1; i < lines.length; i++) {
@@ -3664,6 +3675,37 @@
                 }
             }
 
+            // Strategy 7: truncated JSON recovery — extract top-level fields via regex
+            if (!result) {
+                var truncSrc = cleaned;
+                // Try inside code block first
+                var cbS7 = truncSrc.indexOf('```');
+                if (cbS7 !== -1) {
+                    var leS7 = truncSrc.indexOf('\n', cbS7);
+                    if (leS7 !== -1) truncSrc = truncSrc.substring(leS7 + 1);
+                }
+                var successMatch = truncSrc.match(/"success"\s*:\s*"(yes|no)"/);
+                var editedMatch = truncSrc.match(/"edited"\s*:\s*"(yes|no)"/);
+                var messageMatch = truncSrc.match(/"message"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/);
+                if (successMatch) {
+                    result = { success: successMatch[1] };
+                    if (editedMatch) result.edited = editedMatch[1];
+                    if (messageMatch) result.message = messageMatch[1].replace(/\\"/g, '"').replace(/\\n/g, '\n');
+                    // Try to extract warnings array
+                    var warnMatch = truncSrc.match(/"warnings"\s*:\s*\[([^\]]*)\]/);
+                    if (warnMatch) {
+                        try { result.warnings = JSON.parse('[' + warnMatch[1] + ']'); } catch (e) { }
+                    }
+                    // Try to extract errors array
+                    var errMatch = truncSrc.match(/"errors"\s*:\s*\[([^\]]*)\]/);
+                    if (errMatch) {
+                        try { result.errors = JSON.parse('[' + errMatch[1] + ']'); } catch (e) { }
+                    }
+                    result._truncated = true;
+                    console.log('[displayVerification] Strategy 7 (truncated recovery) succeeded');
+                }
+            }
+
             // Validate result has expected structure
             if (result && (typeof result !== 'object' || Array.isArray(result))) {
                 console.warn('[displayVerification] Parsed result is not an object, discarding');
@@ -3687,9 +3729,12 @@
             const isSuccess = result.success === 'yes';
             const wasEdited = result.edited === 'yes';
             const hasCorrected = result.corrected && typeof result.corrected === 'object' && Object.keys(result.corrected).length > 0;
+            const wasTruncated = result._truncated === true;
 
             let html = '<div class="verification-panel">';
-            if (isSuccess) {
+            if (wasTruncated) {
+                html += '<div class="vp-header warning">\u26a0\ufe0f Response was truncated (AI output too long) — partial info recovered</div>';
+            } else if (isSuccess) {
                 html += '<div class="vp-header success">\u2705 Verification ' + (wasEdited ? 'Complete \u2014 Corrections Applied' : 'Passed \u2014 Data Looks Good') + '</div>';
             } else {
                 html += '<div class="vp-header error">\u274c Data Quality Issues Found</div>';
