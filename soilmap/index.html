@@ -1599,7 +1599,7 @@
                 <div class="header-avatar">🌱</div>
                 <div class="header-info">
                     <h1>Task Management Assistant</h1>
-                    <p><span class="status-dot"></span>Powered by Syngenta AI · GPT-4o</p>
+                    <p><span class="status-dot"></span>Powered by Syngenta AI</p>
                 </div>
             </div>
 
@@ -2035,9 +2035,21 @@
 
         // ── Map setup ──
         const map = L.map('map').setView([51.98, 5.66], 4);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+
+        const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap'
-        }).addTo(map);
+        });
+
+        const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: '© Esri, Maxar, Earthstar Geographics'
+        });
+
+        osmLayer.addTo(map);
+
+        L.control.layers({
+            'OpenStreetMap': osmLayer,
+            'Satellite': satelliteLayer
+        }, null, { position: 'topright' }).addTo(map);
 
         let boundaryLayer = null;
         let samplesLayer = null;
