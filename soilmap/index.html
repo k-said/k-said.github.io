@@ -3298,7 +3298,8 @@
                 user: email,
                 field: fieldName,
                 boundary: boundary,
-                task: type === 'soil-mapping' ? 'Soil Mapping' : 'Guided Sampling'
+                task: type === 'soil-mapping' ? 'Soil Mapping' : 'Guided Sampling',
+                submitted_time: new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, '').replace('T', 'T').slice(0, 15)
             };
 
             if (type === 'soil-mapping') {
