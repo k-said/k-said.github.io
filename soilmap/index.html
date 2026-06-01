@@ -2305,27 +2305,40 @@
             clearValidation();
 
             const chatInput = 'VERIFY_BOUNDARY: ' + rawBoundaryText;
+            const MAX_RETRIES = 3;
+            let attempt = 0;
+            let success = false;
 
-            try {
-                const response = await authFetch(WEBHOOK_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ chatInput, sessionId: SESSION_ID })
-                });
-                if (!response.ok) throw new Error('Server responded with status ' + response.status);
-                const data = await response.json();
-                const reply = extractReply(data);
-                console.log('[verifyBoundary] typeof reply:', typeof reply, '| keys:', typeof reply === 'object' && reply ? Object.keys(reply) : 'N/A');
-                displayBoundaryVerificationResults(reply);
-            } catch (err) {
-                showValidation('⚠️ Boundary verification failed: ' + err.message, 'error');
-                panel.style.display = 'none';
-            } finally {
-                if (verifyBtn) {
-                    verifyBtn.disabled = false;
-                    verifyBtn.textContent = '🔄 Re-verify Boundary';
-                    verifyBtn.style.display = 'block';
+            while (attempt < MAX_RETRIES && !success) {
+                attempt++;
+                if (attempt > 1) {
+                    console.log('[verifyBoundary] Retry attempt ' + attempt + '/' + MAX_RETRIES);
+                    panel.innerHTML = '<div class="verification-panel"><div class="vp-header" style="background:var(--syngenta-light);color:var(--syngenta-dark);justify-content:center;">⏳ Retry ' + attempt + '/' + MAX_RETRIES + ' — Verifying boundary…</div></div>';
                 }
+                try {
+                    const response = await authFetch(WEBHOOK_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ chatInput, sessionId: SESSION_ID })
+                    });
+                    if (!response.ok) throw new Error('Server responded with status ' + response.status);
+                    const data = await response.json();
+                    const reply = extractReply(data);
+                    console.log('[verifyBoundary] attempt ' + attempt + ' typeof reply:', typeof reply, '| keys:', typeof reply === 'object' && reply ? Object.keys(reply) : 'N/A');
+                    success = displayBoundaryVerificationResults(reply);
+                } catch (err) {
+                    console.warn('[verifyBoundary] attempt ' + attempt + ' error:', err.message);
+                    if (attempt >= MAX_RETRIES) {
+                        showValidation('⚠️ Boundary verification failed after ' + MAX_RETRIES + ' attempts: ' + err.message, 'error');
+                        panel.style.display = 'none';
+                    }
+                }
+            }
+
+            if (verifyBtn) {
+                verifyBtn.disabled = false;
+                verifyBtn.textContent = '🔄 Re-verify Boundary';
+                verifyBtn.style.display = 'block';
             }
         }
 
@@ -2439,7 +2452,7 @@
                 updateSubmitState();
                 panel.innerHTML = '<div class="verification-panel"><div class="vp-header warning">⚠️ Could not parse boundary verification response</div><div class="vp-body"><p style="white-space:pre-wrap;font-size:12px;">' + escHtml(replyStr) + '</p>' + rawToggle + '</div></div>';
                 panel.style.display = 'block';
-                return;
+                return false;
             }
 
             const isSuccess = result.success === 'yes';
@@ -2495,6 +2508,7 @@
                 boundaryVerified = false;
             }
             updateSubmitState();
+            return true;  // parsing succeeded (even if validation had errors)
         }
 
         function onBoundaryFieldSelect(idx) {
@@ -3628,26 +3642,40 @@
                 ? 'VERIFY_SAMPLES: ' + JSON.stringify(parsedSamples)
                 : 'VERIFY_SAMPLES: ' + rawSampleText;
 
-            try {
-                const response = await authFetch(WEBHOOK_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ chatInput, sessionId: SESSION_ID })
-                });
-                if (!response.ok) throw new Error('Server responded with status ' + response.status);
-                const data = await response.json();
-                const reply = extractReply(data);
-                console.log('[verifySamples] typeof reply:', typeof reply, '| keys:', typeof reply === 'object' && reply ? Object.keys(reply) : 'N/A');
-                displayVerificationResults(reply);
-            } catch (err) {
-                showValidation('⚠️ Verification failed: ' + err.message, 'error');
-                panel.style.display = 'none';
-            } finally {
-                if (verifyBtn) {
-                    verifyBtn.disabled = false;
-                    verifyBtn.textContent = '🔄 Re-verify Samples';
-                    verifyBtn.style.display = 'block';
+            const MAX_RETRIES = 3;
+            let attempt = 0;
+            let success = false;
+
+            while (attempt < MAX_RETRIES && !success) {
+                attempt++;
+                if (attempt > 1) {
+                    console.log('[verifySamples] Retry attempt ' + attempt + '/' + MAX_RETRIES);
+                    panel.innerHTML = '<div class="verification-panel"><div class="vp-header" style="background:var(--syngenta-light);color:var(--syngenta-dark);justify-content:center;">⏳ Retry ' + attempt + '/' + MAX_RETRIES + ' — Verifying soil data…</div></div>';
                 }
+                try {
+                    const response = await authFetch(WEBHOOK_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ chatInput, sessionId: SESSION_ID })
+                    });
+                    if (!response.ok) throw new Error('Server responded with status ' + response.status);
+                    const data = await response.json();
+                    const reply = extractReply(data);
+                    console.log('[verifySamples] attempt ' + attempt + ' typeof reply:', typeof reply, '| keys:', typeof reply === 'object' && reply ? Object.keys(reply) : 'N/A');
+                    success = displayVerificationResults(reply);
+                } catch (err) {
+                    console.warn('[verifySamples] attempt ' + attempt + ' error:', err.message);
+                    if (attempt >= MAX_RETRIES) {
+                        showValidation('⚠️ Verification failed after ' + MAX_RETRIES + ' attempts: ' + err.message, 'error');
+                        panel.style.display = 'none';
+                    }
+                }
+            }
+
+            if (verifyBtn) {
+                verifyBtn.disabled = false;
+                verifyBtn.textContent = '🔄 Re-verify Samples';
+                verifyBtn.style.display = 'block';
             }
         }
 
@@ -3782,7 +3810,7 @@
                 updateSubmitState();
                 panel.innerHTML = '<div class="verification-panel"><div class="vp-header warning">\u26a0\ufe0f Could not parse verification response</div><div class="vp-body"><p style="white-space:pre-wrap;font-size:12px;">' + escHtml(replyStr) + '</p>' + rawToggle + '</div></div>';
                 panel.style.display = 'block';
-                return;
+                return false;
             }
 
             const isSuccess = result.success === 'yes';
@@ -3816,24 +3844,13 @@
             if (hasCorrected) {
                 verifiedSamples = result.corrected;
                 html += '<hr style="margin:8px 0;border:none;border-top:1px solid var(--border);">';
-                html += '<div class="sample-toolbar"><span style="font-weight:600;font-size:13px;">\ud83d\udccb ' + (isSuccess ? 'Cleaned' : 'Partially Corrected') + ' Data</span>';
+                html += '<div class="sample-toolbar"><span style="font-weight:600;font-size:13px;">\ud83d\udccb ' + (isSuccess ? 'Cleaned' : 'Partially Corrected') + ' Data (shown in editable table below)</span>';
                 html += '<button type="button" class="tbtn" onclick="downloadCorrectedCSV()">\ud83d\udce5 Download CSV</button></div>';
                 var cols = Object.keys(result.corrected);
                 var nRows = result.corrected[cols[0]] ? result.corrected[cols[0]].length : 0;
-                html += '<div class="editable-wrap"><table class="editable-table" id="correctedTable"><thead><tr>';
-                cols.forEach(function (c) { html += '<th>' + escHtml(c) + '</th>'; });
-                html += '</tr></thead><tbody>';
-                for (var i = 0; i < nRows; i++) {
-                    html += '<tr>';
-                    cols.forEach(function (c) { var v = result.corrected[c][i]; html += '<td contenteditable="true">' + (v != null ? escHtml(v) : '') + '</td>'; });
-                    html += '</tr>';
-                }
-                html += '</tbody></table></div>';
                 html += '<div style="font-size:11px;color:var(--text-secondary);text-align:center;margin-top:4px;">' + nRows + ' rows \u00d7 ' + cols.length + ' columns</div>';
-                if (isSuccess) {
-                    html += '<div class="accept-bar"><button type="button" class="abtn accept" onclick="acceptCorrectedSamples()">\u2705 Accept & Use This Data</button>';
-                    if (parsedSamples) html += '<button type="button" class="abtn refuse" onclick="refuseCorrectedSamples()">\u21a9 Keep Original</button>';
-                    html += '</div>';
+                if (isSuccess && parsedSamples) {
+                    html += '<div class="accept-bar"><button type="button" class="abtn refuse" onclick="refuseCorrectedSamples()">\u21a9 Revert to Original Input</button></div>';
                 }
             }
 
@@ -3861,6 +3878,7 @@
                 if (hasCorrected) tryDisplaySamplesOnMap(result.corrected);
             }
             updateSubmitState();
+            return true;  // parsing succeeded (even if validation had errors)
         }
 
         function syncCorrectedTable() {
@@ -3885,27 +3903,20 @@
         }
 
         function acceptCorrectedSamples() {
-            syncCorrectedTable();
-            if (!verifiedSamples) return;
-            parsedSamples = verifiedSamples;
-            sampleVerified = true;
-            document.getElementById('soilSamples').value = JSON.stringify(parsedSamples);
-            showSamplePreview(parsedSamples);
-            tryDisplaySamplesOnMap(parsedSamples);
+            // Data already auto-accepted on verification success
             document.getElementById('verificationPanel').style.display = 'none';
-            updateSubmitState();
             showValidation('\u2705 Corrections accepted! You can further edit the table if needed.', 'success');
         }
 
         function downloadCorrectedCSV() {
-            syncCorrectedTable();
-            if (!verifiedSamples) return;
-            const cols = Object.keys(verifiedSamples);
-            const nRows = verifiedSamples[cols[0]].length;
+            // Use current parsedSamples (which is the corrected data after verification)
+            if (!parsedSamples) return;
+            const cols = Object.keys(parsedSamples);
+            const nRows = parsedSamples[cols[0]].length;
             let csv = cols.join(',') + '\n';
             for (let i = 0; i < nRows; i++) {
                 csv += cols.map(c => {
-                    const v = verifiedSamples[c][i];
+                    const v = parsedSamples[c][i];
                     if (v === null || v === undefined) return '';
                     const s = String(v);
                     return s.includes(',') ? '"' + s + '"' : s;
