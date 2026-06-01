@@ -3875,8 +3875,41 @@
             if (isSuccess) {
                 sampleVerified = true;
                 var useData = hasCorrected ? result.corrected : parsedSamples;
+
+                // If truncated and no corrected data, apply column renames from warnings locally
+                if (wasTruncated && !hasCorrected && parsedSamples && result.warnings && result.warnings.length > 0) {
+                    var renamed = {};
+                    Object.keys(parsedSamples).forEach(function (k) { renamed[k] = parsedSamples[k].slice(); });
+                    result.warnings.forEach(function (w) {
+                        var m = w.match(/['\u2018\u2019"]([^'\u2018\u2019"]+)['\u2018\u2019"]\s*->\s*['\u2018\u2019"]([^'\u2018\u2019"]+)['\u2018\u2019"]/);
+                        if (m) {
+                            var oldName = m[1], newName = m[2];
+                            if (renamed[oldName]) {
+                                renamed[newName] = renamed[oldName];
+                                delete renamed[oldName];
+                            }
+                        }
+                    });
+                    // Add sample_id if warned about missing IDs
+                    var needsId = result.warnings.some(function (w) { return w.toLowerCase().indexOf('sample_id') !== -1 || w.toLowerCase().indexOf('sample id') !== -1; });
+                    if (needsId && !renamed['sample_id']) {
+                        var nR = renamed[Object.keys(renamed)[0]].length;
+                        renamed['sample_id'] = [];
+                        for (var si = 0; si < nR; si++) renamed['sample_id'].push('sample_' + (si + 1));
+                        // Move sample_id to front
+                        var reordered = { sample_id: renamed['sample_id'] };
+                        Object.keys(renamed).forEach(function (k) { if (k !== 'sample_id') reordered[k] = renamed[k]; });
+                        renamed = reordered;
+                    }
+                    useData = renamed;
+                    console.log('[displayVerification] Applied local renames from truncated warnings:', Object.keys(renamed));
+                }
+
                 if (hasCorrected && parsedSamples) {
                     // Save original for "Keep Original" option
+                    originalParsedSamples = {};
+                    Object.keys(parsedSamples).forEach(function (k) { originalParsedSamples[k] = parsedSamples[k].slice(); });
+                } else if (wasTruncated && useData !== parsedSamples) {
                     originalParsedSamples = {};
                     Object.keys(parsedSamples).forEach(function (k) { originalParsedSamples[k] = parsedSamples[k].slice(); });
                 }
@@ -3888,6 +3921,33 @@
                 }
             } else {
                 sampleVerified = false;
+                // Even when failed, apply column renames from warnings if truncated
+                if (wasTruncated && parsedSamples && result.warnings && result.warnings.length > 0) {
+                    var renamed2 = {};
+                    Object.keys(parsedSamples).forEach(function (k) { renamed2[k] = parsedSamples[k].slice(); });
+                    result.warnings.forEach(function (w) {
+                        var m2 = w.match(/['\u2018\u2019"]([^'\u2018\u2019"]+)['\u2018\u2019"]\s*->\s*['\u2018\u2019"]([^'\u2018\u2019"]+)['\u2018\u2019"]/);
+                        if (m2 && renamed2[m2[1]]) {
+                            renamed2[m2[2]] = renamed2[m2[1]];
+                            delete renamed2[m2[1]];
+                        }
+                    });
+                    var needsId2 = result.warnings.some(function (w) { return w.toLowerCase().indexOf('sample_id') !== -1; });
+                    if (needsId2 && !renamed2['sample_id']) {
+                        var nR2 = renamed2[Object.keys(renamed2)[0]].length;
+                        renamed2['sample_id'] = [];
+                        for (var si2 = 0; si2 < nR2; si2++) renamed2['sample_id'].push('sample_' + (si2 + 1));
+                        var reordered2 = { sample_id: renamed2['sample_id'] };
+                        Object.keys(renamed2).forEach(function (k) { if (k !== 'sample_id') reordered2[k] = renamed2[k]; });
+                        renamed2 = reordered2;
+                    }
+                    originalParsedSamples = {};
+                    Object.keys(parsedSamples).forEach(function (k) { originalParsedSamples[k] = parsedSamples[k].slice(); });
+                    parsedSamples = renamed2;
+                    document.getElementById('soilSamples').value = JSON.stringify(renamed2);
+                    showSamplePreview(renamed2);
+                    tryDisplaySamplesOnMap(renamed2);
+                }
                 if (hasCorrected) tryDisplaySamplesOnMap(result.corrected);
             }
             updateSubmitState();
