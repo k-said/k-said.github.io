@@ -3801,6 +3801,31 @@
                     if (errMatch) {
                         try { result.errors = JSON.parse('[' + errMatch[1] + ']'); } catch (e) { }
                     }
+                    // Try to extract column_mapping object
+                    var cmMatch = truncSrc.match(/"column_mapping"\s*:\s*(\{[^}]*\})/);
+                    if (cmMatch) {
+                        try { result.column_mapping = JSON.parse(cmMatch[1]); } catch (e) { }
+                    }
+                    // Try to extract added_columns object (may be large, try anyway)
+                    var acStart = truncSrc.indexOf('"added_columns"');
+                    if (acStart !== -1) {
+                        var acBrace = truncSrc.indexOf('{', acStart);
+                        if (acBrace !== -1) {
+                            var d = 0, end = -1;
+                            for (var aci = acBrace; aci < truncSrc.length; aci++) {
+                                if (truncSrc[aci] === '{') d++;
+                                else if (truncSrc[aci] === '}') { d--; if (d === 0) { end = aci; break; } }
+                            }
+                            if (end > 0) {
+                                try { result.added_columns = JSON.parse(truncSrc.substring(acBrace, end + 1)); } catch (e) { }
+                            }
+                        }
+                    }
+                    // Try to extract removed_columns array
+                    var rcMatch = truncSrc.match(/"removed_columns"\s*:\s*\[([^\]]*)\]/);
+                    if (rcMatch) {
+                        try { result.removed_columns = JSON.parse('[' + rcMatch[1] + ']'); } catch (e) { }
+                    }
                     result._truncated = true;
                     console.log('[displayVerification] Strategy 7 (truncated recovery) succeeded');
                 }
@@ -3829,10 +3854,15 @@
             const isSuccess = result.success === 'yes';
             const wasEdited = result.edited === 'yes';
             const hasCorrected = result.corrected && typeof result.corrected === 'object' && Object.keys(result.corrected).length > 0;
+            const hasColumnMapping = result.column_mapping && typeof result.column_mapping === 'object' && Object.keys(result.column_mapping).length > 0;
+            const hasAddedColumns = result.added_columns && typeof result.added_columns === 'object' && Object.keys(result.added_columns).length > 0;
+            const hasRemovedColumns = result.removed_columns && Array.isArray(result.removed_columns) && result.removed_columns.length > 0;
             const wasTruncated = result._truncated === true;
 
             let html = '<div class="verification-panel">';
-            if (wasTruncated) {
+            if (wasTruncated && isSuccess) {
+                html += '<div class="vp-header success">\u2705 Verification Complete \u2014 Corrections Applied <span style="font-size:11px;opacity:0.8;">(response was trimmed but data recovered)</span></div>';
+            } else if (wasTruncated) {
                 html += '<div class="vp-header warning">\u26a0\ufe0f Response was truncated (AI output too long) — partial info recovered</div>';
             } else if (isSuccess) {
                 html += '<div class="vp-header success">\u2705 Verification ' + (wasEdited ? 'Complete \u2014 Corrections Applied' : 'Passed \u2014 Data Looks Good') + '</div>';
@@ -3857,13 +3887,25 @@
             if (hasCorrected) {
                 verifiedSamples = result.corrected;
                 html += '<hr style="margin:8px 0;border:none;border-top:1px solid var(--border);">';
-                html += '<div class="sample-toolbar"><span style="font-weight:600;font-size:13px;">\ud83d\udccb ' + (isSuccess ? 'Cleaned' : 'Partially Corrected') + ' Data (shown in editable table below)</span>';
+                html += '<div class="sample-toolbar"><span style="font-weight:600;font-size:13px;">\ud83d\udccb ' + (isSuccess ? 'Cleaned' : 'Partially Corrected') + ' Data (shown in editable table above)</span>';
                 html += '<button type="button" class="tbtn" onclick="downloadCorrectedCSV()">\ud83d\udce5 Download CSV</button></div>';
                 var cols = Object.keys(result.corrected);
                 var nRows = result.corrected[cols[0]] ? result.corrected[cols[0]].length : 0;
                 html += '<div style="font-size:11px;color:var(--text-secondary);text-align:center;margin-top:4px;">' + nRows + ' rows \u00d7 ' + cols.length + ' columns</div>';
-                if (isSuccess && parsedSamples) {
-                    html += '<div class="accept-bar"><button type="button" class="abtn refuse" onclick="refuseCorrectedSamples()">\u21a9 Revert to Original Input</button></div>';
+                html += '<div class="accept-bar"><button type="button" class="abtn accept" onclick="acceptCorrectedSamples()" style="margin-right:8px;">\u2705 Accept Corrections</button><button type="button" class="abtn refuse" onclick="refuseCorrectedSamples()">\u21a9 Revert to Original Input</button></div>';
+            } else if (hasColumnMapping || (wasTruncated && result.warnings && result.warnings.length > 0)) {
+                // Column mapping from AI or truncated response: show accept/refuse for locally-applied corrections
+                var willApplyCorrections = hasColumnMapping || (result.warnings && result.warnings.some(function (w) { return w.indexOf('->') !== -1 || w.toLowerCase().indexOf('sample_id') !== -1; }));
+                if (willApplyCorrections) {
+                    html += '<hr style="margin:8px 0;border:none;border-top:1px solid var(--border);">';
+                    html += '<div class="sample-toolbar"><span style="font-weight:600;font-size:13px;">\ud83d\udccb Corrections Applied (column renames — see updated table above)</span>';
+                    html += '<button type="button" class="tbtn" onclick="downloadCorrectedCSV()">\ud83d\udce5 Download CSV</button></div>';
+                    if (parsedSamples) {
+                        var tCols = Object.keys(parsedSamples);
+                        var tRows = parsedSamples[tCols[0]] ? parsedSamples[tCols[0]].length : 0;
+                        html += '<div style="font-size:11px;color:var(--text-secondary);text-align:center;margin-top:4px;">' + tRows + ' rows \u00d7 ' + tCols.length + ' columns</div>';
+                    }
+                    html += '<div class="accept-bar"><button type="button" class="abtn accept" onclick="acceptCorrectedSamples()" style="margin-right:8px;">\u2705 Accept Corrections</button><button type="button" class="abtn refuse" onclick="refuseCorrectedSamples()">\u21a9 Revert to Original Input</button></div>';
                 }
             }
 
@@ -3871,13 +3913,40 @@
             panel.innerHTML = html;
             panel.style.display = 'block';
 
+            // Helper: apply column_mapping + added_columns + removed_columns to parsedSamples
+            function applyColumnMapping(data, mapping, added, removed) {
+                var result = {};
+                Object.keys(data).forEach(function (k) {
+                    if (removed && removed.indexOf(k) !== -1) return; // skip removed
+                    var newKey = (mapping && mapping[k]) ? mapping[k] : k;
+                    result[newKey] = data[k].slice();
+                });
+                if (added) {
+                    Object.keys(added).forEach(function (k) { result[k] = added[k].slice ? added[k].slice() : added[k]; });
+                }
+                // Move sample_id to front if exists
+                if (result['sample_id']) {
+                    var reordered = { sample_id: result['sample_id'] };
+                    Object.keys(result).forEach(function (k) { if (k !== 'sample_id') reordered[k] = result[k]; });
+                    return reordered;
+                }
+                return result;
+            }
+
             // Update data state
             if (isSuccess) {
                 sampleVerified = true;
-                var useData = hasCorrected ? result.corrected : parsedSamples;
+                var useData = null;
 
-                // If truncated and no corrected data, apply column renames from warnings locally
-                if (wasTruncated && !hasCorrected && parsedSamples && result.warnings && result.warnings.length > 0) {
+                if (hasCorrected) {
+                    // Full corrected data from AI
+                    useData = result.corrected;
+                } else if (hasColumnMapping && parsedSamples) {
+                    // AI returned column_mapping instead of full corrected data
+                    useData = applyColumnMapping(parsedSamples, result.column_mapping, result.added_columns, result.removed_columns);
+                    console.log('[displayVerification] Applied column_mapping:', result.column_mapping);
+                } else if (wasTruncated && parsedSamples && result.warnings && result.warnings.length > 0) {
+                    // Fallback: parse renames from warnings text
                     var renamed = {};
                     Object.keys(parsedSamples).forEach(function (k) { renamed[k] = parsedSamples[k].slice(); });
                     result.warnings.forEach(function (w) {
@@ -3890,26 +3959,23 @@
                             }
                         }
                     });
-                    // Add sample_id if warned about missing IDs
                     var needsId = result.warnings.some(function (w) { return w.toLowerCase().indexOf('sample_id') !== -1 || w.toLowerCase().indexOf('sample id') !== -1; });
                     if (needsId && !renamed['sample_id']) {
                         var nR = renamed[Object.keys(renamed)[0]].length;
                         renamed['sample_id'] = [];
                         for (var si = 0; si < nR; si++) renamed['sample_id'].push('sample_' + (si + 1));
-                        // Move sample_id to front
                         var reordered = { sample_id: renamed['sample_id'] };
                         Object.keys(renamed).forEach(function (k) { if (k !== 'sample_id') reordered[k] = renamed[k]; });
                         renamed = reordered;
                     }
                     useData = renamed;
                     console.log('[displayVerification] Applied local renames from truncated warnings:', Object.keys(renamed));
+                } else {
+                    useData = parsedSamples;
                 }
 
-                if (hasCorrected && parsedSamples) {
-                    // Save original for "Keep Original" option
-                    originalParsedSamples = {};
-                    Object.keys(parsedSamples).forEach(function (k) { originalParsedSamples[k] = parsedSamples[k].slice(); });
-                } else if (wasTruncated && useData !== parsedSamples) {
+                // Save original for revert option
+                if (useData && useData !== parsedSamples) {
                     originalParsedSamples = {};
                     Object.keys(parsedSamples).forEach(function (k) { originalParsedSamples[k] = parsedSamples[k].slice(); });
                 }
@@ -3921,8 +3987,16 @@
                 }
             } else {
                 sampleVerified = false;
-                // Even when failed, apply column renames from warnings if truncated
-                if (wasTruncated && parsedSamples && result.warnings && result.warnings.length > 0) {
+                // Even when failed, apply corrections if available
+                if (hasColumnMapping && parsedSamples) {
+                    originalParsedSamples = {};
+                    Object.keys(parsedSamples).forEach(function (k) { originalParsedSamples[k] = parsedSamples[k].slice(); });
+                    var mappedData = applyColumnMapping(parsedSamples, result.column_mapping, result.added_columns, result.removed_columns);
+                    parsedSamples = mappedData;
+                    document.getElementById('soilSamples').value = JSON.stringify(mappedData);
+                    showSamplePreview(mappedData);
+                    tryDisplaySamplesOnMap(mappedData);
+                } else if (wasTruncated && parsedSamples && result.warnings && result.warnings.length > 0) {
                     var renamed2 = {};
                     Object.keys(parsedSamples).forEach(function (k) { renamed2[k] = parsedSamples[k].slice(); });
                     result.warnings.forEach(function (w) {
