@@ -2569,7 +2569,7 @@
             let fn = cleanFieldName(raw);
 
             // If field name is generic or empty, try to extract from filenames
-            if (!fn || /^Field\s*\d*$/i.test(fn)) {
+            if (!fn || /^Field[_\s]*\d*$/i.test(fn)) {
                 // Try boundary file name first, then sample file name
                 var fromBoundary = extractFieldNameFromFileName(boundaryUploadFileName);
                 var fromSample = extractFieldNameFromFileName(sampleUploadFileName);
@@ -2586,12 +2586,16 @@
                 return;
             }
             const selectedGeom = validatedBoundaries.geometry[selectedBoundaryIdx];
+            // Clean field name (remove special chars and whitespace)
+            var rawFieldVal = document.getElementById('fieldName').value.trim();
+            var cleanedFieldVal = cleanFieldName(rawFieldVal) || cleanFieldName(validatedBoundaries.FieldName[selectedBoundaryIdx]);
+            document.getElementById('fieldName').value = cleanedFieldVal;
             // Store as a FeatureCollection with the selected boundary
             const boundaryGeoJSON = {
                 type: 'FeatureCollection',
                 features: [{
                     type: 'Feature',
-                    properties: { name: document.getElementById('fieldName').value.trim() || validatedBoundaries.FieldName[selectedBoundaryIdx] },
+                    properties: { name: cleanedFieldVal },
                     geometry: selectedGeom
                 }]
             };
@@ -3273,7 +3277,7 @@
 
             // ── Build payload matching system prompt format ──
             const email = document.getElementById('userEmail').value.trim();
-            const fieldName = document.getElementById('fieldName').value.trim();
+            const fieldName = cleanFieldName(document.getElementById('fieldName').value.trim());
             const boundary = JSON.parse(document.getElementById('boundaryInput').value.trim());
 
             const taskPayload = {
@@ -3492,7 +3496,28 @@
                     data[h].push(v === '' ? null : (isNaN(num) ? v : num));
                 });
             }
+            // Remove index-like columns (sequential 0,1,2,... or 1,2,3,...)
+            removeIndexColumns(data);
             return data;
+        }
+
+        function removeIndexColumns(data) {
+            const cols = Object.keys(data);
+            cols.forEach(function (col) {
+                const vals = data[col];
+                if (!vals || vals.length < 2) return;
+                // Check if column name looks like an index (NA, '', unnamed, index, Unnamed:0, etc.)
+                var lc = col.toLowerCase().trim();
+                var isIndexName = (lc === 'na' || lc === '' || lc === 'unnamed' || lc === 'index' ||
+                    /^unnamed[_:]?\d*$/i.test(col) || /^__\d+$/.test(col));
+                if (!isIndexName) return;
+                // Check if values are sequential integers 0..n-1 or 1..n
+                var isSeq0 = vals.every(function (v, i) { return v === i; });
+                var isSeq1 = vals.every(function (v, i) { return v === i + 1; });
+                if (isSeq0 || isSeq1) {
+                    delete data[col];
+                }
+            });
         }
 
         function parseExcelFile(arrayBuffer) {
@@ -3828,7 +3853,7 @@
                 if (useData) {
                     parsedSamples = useData;
                     document.getElementById('soilSamples').value = JSON.stringify(useData);
-                    if (!hasCorrected) showSamplePreview(useData);
+                    showSamplePreview(useData);
                     tryDisplaySamplesOnMap(useData);
                 }
             } else {
