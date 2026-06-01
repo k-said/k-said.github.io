@@ -2537,8 +2537,9 @@
         function cleanFieldName(name) {
             if (!name) return '';
             return name
-                .replace(/[/\\]/g, '')      // remove / and \
-                .replace(/\s+/g, ' ')        // collapse whitespace
+                .replace(/[^a-zA-Z0-9]/g, '_')  // replace special chars and spaces with underscore
+                .replace(/_+/g, '_')              // collapse multiple underscores
+                .replace(/^_|_$/g, '')            // trim leading/trailing underscores
                 .trim();
         }
 
@@ -2555,7 +2556,9 @@
                 .replace(/\bfield\b/gi, '')      // remove standalone "field"
                 .replace(/\brawnames\b/gi, '')   // remove "rawnames"
                 .replace(/\badjusted\b/gi, '')   // remove "adjusted"
-                .replace(/\s+/g, ' ')            // collapse whitespace
+                .replace(/[^a-zA-Z0-9]/g, '_')   // replace special chars/spaces with underscore
+                .replace(/_+/g, '_')              // collapse multiple underscores
+                .replace(/^_|_$/g, '')            // trim leading/trailing underscores
                 .trim();
             return name;
         }
