@@ -1215,6 +1215,21 @@
             opacity: 1;
         }
 
+        .editable-table th .col-name {
+            outline: none;
+            border-bottom: 1px dashed rgba(255,255,255,0.5);
+            cursor: text;
+            min-width: 20px;
+            display: inline-block;
+        }
+
+        .editable-table th .col-name:focus {
+            border-bottom: 1px solid #fff;
+            background: rgba(255,255,255,0.15);
+            border-radius: 2px;
+            padding: 0 2px;
+        }
+
         .editable-table td {
             padding: 4px 6px;
             border-bottom: 1px solid var(--border);
@@ -3576,7 +3591,7 @@
 
             html += '<div class="editable-wrap"><table class="editable-table" id="editableTable"><thead><tr>';
             cols.forEach((c, ci) => {
-                html += `<th>${c} <span class="del-col" title="Delete column" onclick="deleteColumn(${ci})">&times;</span></th>`;
+                html += `<th><span class="col-name" contenteditable="true" spellcheck="false">${c}</span> <span class="del-col" title="Delete column" onclick="deleteColumn(${ci})">&times;</span></th>`;
             });
             html += '<th style="width:30px;"></th>';
             html += '</tr></thead><tbody>';
@@ -4259,7 +4274,8 @@
             if (!table) return;
             const headers = [];
             table.querySelectorAll('thead th').forEach(th => {
-                const text = th.textContent.replace('\u00d7', '').trim();
+                const nameSpan = th.querySelector('.col-name');
+                const text = nameSpan ? nameSpan.textContent.trim() : th.textContent.replace('\u00d7', '').trim();
                 if (text) headers.push(text);
             });
             const data = {};
