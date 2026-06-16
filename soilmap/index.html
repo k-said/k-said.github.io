@@ -1217,7 +1217,7 @@
 
         .editable-table th .col-name {
             outline: none;
-            border-bottom: 1px dashed rgba(255,255,255,0.5);
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.5);
             cursor: text;
             min-width: 20px;
             display: inline-block;
@@ -1225,7 +1225,7 @@
 
         .editable-table th .col-name:focus {
             border-bottom: 1px solid #fff;
-            background: rgba(255,255,255,0.15);
+            background: rgba(255, 255, 255, 0.15);
             border-radius: 2px;
             padding: 0 2px;
         }
@@ -1688,11 +1688,11 @@
                                 onclick="document.getElementById('sampleFileInput').click()">
                                 <div class="upload-icon">📄</div>
                                 <div><strong>Click to upload</strong> or drag &amp; drop</div>
-                                <p class="formats">Supported: .csv, .xlsx, .xls, .pdf, .json, .geojson, .txt, .doc,
-                                    .docx &amp; more</p>
+                                <p class="formats">Supported: .csv, .numbers, .txt, .doc, .docx, .shp/.zip (Shapefile),
+                                    .json, .geojson, .pdf</p>
                             </div>
                             <input type="file" id="sampleFileInput"
-                                accept=".pdf,.xlsx,.xls,.csv,.json,.geojson,.txt,.doc,.docx,.tsv,.ods"
+                                accept=".pdf,.csv,.json,.geojson,.txt,.doc,.docx,.numbers,.shp,.zip,.shx,.dbf,.prj"
                                 style="display:none" onchange="handleSampleFile(event)">
                             <div id="sampleFileInfo" class="sample-file-info" style="display:none;">
                                 <span id="sampleFileName"></span>
@@ -1998,8 +1998,6 @@
 
     </div>
 
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/shpjs@4.0.4/dist/shp.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -2008,13 +2006,10 @@
         // ── Config ──
         const WEBHOOK_URL = 'https://n8n.syngenta.com/webhook/chatsoilmap';
         const DOWNLOAD_URL = 'https://n8n.syngenta.com/webhook/soilmap-download';
+        const EXTRACT_SAMPLES_URL = 'https://n8n.syngenta.com/webhook/extract-soil-samples';
+        const JOB_STATUS_URL = 'https://n8n.syngenta.com/webhook/soilmap-job-status';
         const SESSION_ID = 'session_' + Math.random().toString(36).slice(2, 11);
         let AUTH_HEADER = '';
-
-        // PDF.js worker
-        if (typeof pdfjsLib !== 'undefined') {
-            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        }
 
         function doLogin() {
             const user = document.getElementById('loginUser').value.trim();
@@ -3269,16 +3264,16 @@
             clearValidation();
             resultsArea.style.display = 'none';
 
-            // ── Check Job Status ──
+            // ── Check Job Status (direct webhook, no AI) ──
             if (type === 'check-jobs') {
                 submitBtn.disabled = true;
                 submitBtn.textContent = '⏳ Loading…';
 
                 try {
-                    const response = await authFetch(WEBHOOK_URL, {
+                    const response = await authFetch(JOB_STATUS_URL, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ chatInput: 'Check job status', sessionId: SESSION_ID })
+                        body: JSON.stringify({})
                     });
 
                     if (!response.ok) throw new Error('Server responded with status ' + response.status);
@@ -3286,7 +3281,7 @@
                     const data = await response.json();
                     console.log('[check-jobs] raw response data:', JSON.stringify(data).slice(0, 500));
 
-                    // Extract the jobs JSON from all possible response shapes
+                    // Direct response is the jobs JSON (no AI wrapping)
                     const jobsData = extractJobsData(data);
                     console.log('[check-jobs] extracted jobsData:', jobsData);
 
@@ -3429,10 +3424,9 @@
         async function handleSampleFile(event) {
             const file = event.target.files[0];
             if (!file) return;
-            const ext = file.name.split('.').pop().toLowerCase();
 
             // Show processing state
-            document.getElementById('sampleFileName').textContent = '⏳ Processing ' + file.name + '…';
+            document.getElementById('sampleFileName').textContent = '⏳ Uploading & extracting from ' + file.name + '…';
             document.getElementById('sampleFileInfo').style.display = 'flex';
             document.getElementById('sampleDropZone').style.display = 'none';
             document.getElementById('samplePreview').style.display = 'none';
@@ -3449,66 +3443,199 @@
             updateSubmitState();
 
             try {
-                if (ext === 'pdf') {
-                    const buf = await readFileAs(file, 'arraybuffer');
-                    rawSampleText = await parsePDFFile(new Uint8Array(buf));
-                    if (!rawSampleText) throw new Error('Could not extract text from PDF.');
-                } else if (ext === 'csv' || ext === 'tsv') {
-                    const text = await readFileAs(file, 'text');
-                    parsedSamples = parseCSV(text, ext === 'tsv' ? '\t' : ',');
-                } else if (ext === 'json' || ext === 'geojson') {
-                    const text = await readFileAs(file, 'text');
-                    const parsed = JSON.parse(text);
-                    // Check if it's a column-array dict or GeoJSON FeatureCollection
-                    if (parsed && parsed.type === 'FeatureCollection' && Array.isArray(parsed.features)) {
-                        // Convert GeoJSON features to column-array format
-                        const feats = parsed.features.filter(f => f.properties);
-                        if (feats.length === 0) throw new Error('GeoJSON has no features with properties.');
-                        const cols = new Set();
-                        feats.forEach(f => Object.keys(f.properties).forEach(k => cols.add(k)));
-                        if (feats[0].geometry && feats[0].geometry.coordinates) {
-                            cols.add('longitude'); cols.add('latitude');
-                        }
-                        const data = {};
-                        cols.forEach(c => { data[c] = []; });
-                        feats.forEach(f => {
-                            cols.forEach(c => {
-                                if (c === 'longitude' && f.geometry && f.geometry.coordinates) data[c].push(f.geometry.coordinates[0]);
-                                else if (c === 'latitude' && f.geometry && f.geometry.coordinates) data[c].push(f.geometry.coordinates[1]);
-                                else data[c].push(f.properties[c] !== undefined ? f.properties[c] : null);
-                            });
-                        });
-                        parsedSamples = data;
-                    } else if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                        // Assume column-array dict format
-                        parsedSamples = parsed;
-                    } else {
-                        // Send raw JSON text to AI for interpretation
-                        rawSampleText = text;
+                // Read file as base64 — NO local preprocessing
+                const arrayBuffer = await readFileAs(file, 'arraybuffer');
+                const base64 = arrayBufferToBase64(arrayBuffer);
+
+                // Send raw file to n8n for extraction
+                const panel = document.getElementById('verificationPanel');
+                panel.innerHTML = '<div class="verification-panel"><div class="vp-header" style="background:var(--syngenta-light);color:var(--syngenta-dark);justify-content:center;">⏳ Extracting soil samples from file…</div></div>';
+                panel.style.display = 'block';
+
+                const MAX_RETRIES = 3;
+                let attempt = 0;
+                let success = false;
+
+                while (attempt < MAX_RETRIES && !success) {
+                    attempt++;
+                    if (attempt > 1) {
+                        panel.innerHTML = '<div class="verification-panel"><div class="vp-header" style="background:var(--syngenta-light);color:var(--syngenta-dark);justify-content:center;">⏳ Retry ' + attempt + '/' + MAX_RETRIES + ' — Extracting soil samples…</div></div>';
                     }
-                } else if (ext === 'xlsx' || ext === 'xls' || ext === 'ods') {
-                    const buf = await readFileAs(file, 'arraybuffer');
-                    parsedSamples = parseExcelFile(new Uint8Array(buf));
-                } else {
-                    // txt, doc, docx, and any other format — read as text and send to AI
-                    const text = await readFileAs(file, 'text');
-                    if (!text || text.trim().length === 0) throw new Error('File is empty or unreadable.');
-                    rawSampleText = text.trim();
+                    try {
+                        const response = await authFetch(EXTRACT_SAMPLES_URL, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                file: base64,
+                                filename: file.name,
+                                mimeType: file.type || 'application/octet-stream',
+                                sessionId: SESSION_ID
+                            })
+                        });
+                        if (!response.ok) throw new Error('Server responded with status ' + response.status);
+                        const data = await response.json();
+                        const reply = extractReply(data);
+                        success = displayExtractionResults(reply);
+                    } catch (err) {
+                        console.warn('[handleSampleFile] attempt ' + attempt + ' error:', err.message);
+                        if (attempt >= MAX_RETRIES) {
+                            showValidation('⚠️ Extraction failed after ' + MAX_RETRIES + ' attempts: ' + err.message, 'error');
+                            panel.style.display = 'none';
+                            document.getElementById('sampleFileInfo').style.display = 'none';
+                            document.getElementById('sampleDropZone').style.display = '';
+                        }
+                    }
                 }
 
-                if (parsedSamples && Object.keys(parsedSamples).length === 0) {
-                    throw new Error('No data found in the uploaded file.');
+                if (success) {
+                    document.getElementById('sampleFileName').textContent = '✓ ' + file.name;
+                    document.getElementById('verifyBtn').style.display = 'block';
+                    document.getElementById('verifyBtn').textContent = '🔄 Re-extract Samples';
                 }
-
-                document.getElementById('sampleFileName').textContent = '✓ ' + file.name;
-
-                // Auto-trigger verification
-                await verifySamples();
             } catch (err) {
                 showValidation('⚠️ Error processing file: ' + err.message, 'error');
                 document.getElementById('sampleFileInfo').style.display = 'none';
                 document.getElementById('sampleDropZone').style.display = '';
             }
+        }
+
+        function arrayBufferToBase64(buffer) {
+            let binary = '';
+            const bytes = new Uint8Array(buffer);
+            const len = bytes.byteLength;
+            for (let i = 0; i < len; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return btoa(binary);
+        }
+
+        function displayExtractionResults(reply) {
+            const panel = document.getElementById('verificationPanel');
+            let result = null;
+
+            // If reply is already a parsed object with expected keys, use directly
+            if (reply && typeof reply === 'object' && !Array.isArray(reply) && 'success' in reply) {
+                result = reply;
+            }
+
+            // Convert to string for text-based parsing
+            var replyStr = (typeof reply === 'string') ? reply : JSON.stringify(reply, null, 2);
+            var cleaned = replyStr.trim()
+                .replace(/^\uFEFF/, '')
+                .replace(/[\u200B\u200C\u200D\uFEFF]/g, '')
+                .replace(/\r\n/g, '\n');
+
+            // Strategy 1: code block extraction
+            if (!result) {
+                var cbStart = cleaned.indexOf('```');
+                if (cbStart !== -1) {
+                    var lineEnd = cleaned.indexOf('\n', cbStart);
+                    var cbEnd = cleaned.lastIndexOf('```');
+                    if (lineEnd !== -1 && cbEnd > lineEnd) {
+                        var inner = cleaned.substring(lineEnd + 1, cbEnd).trim();
+                        try { result = JSON.parse(inner); } catch (e) { }
+                    }
+                }
+            }
+
+            // Strategy 2: direct parse
+            if (!result) {
+                try { result = JSON.parse(cleaned); } catch (e) { }
+            }
+
+            // Strategy 3: brace extraction
+            if (!result) {
+                var first = cleaned.indexOf('{');
+                var last = cleaned.lastIndexOf('}');
+                if (first !== -1 && last > first) {
+                    try { result = JSON.parse(cleaned.substring(first, last + 1)); } catch (e) { }
+                }
+            }
+
+            // Strategy 4: balanced-brace walk from {"success"
+            if (!result) {
+                var s = cleaned.search(/\{\s*"success"/);
+                if (s !== -1) {
+                    var sub = cleaned.substring(s);
+                    var d = 0, end = -1;
+                    for (var i = 0; i < sub.length; i++) {
+                        if (sub[i] === '{') d++;
+                        else if (sub[i] === '}') { d--; if (d === 0) { end = i; break; } }
+                    }
+                    if (end > 0) {
+                        try { result = JSON.parse(sub.substring(0, end + 1)); } catch (e) { }
+                    }
+                }
+            }
+
+            const escHtml = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const rawId = 'rawExtractResp_' + Date.now();
+            const rawToggle = '<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;"><button type="button" class="tbtn" onclick="document.getElementById(\'' + rawId + '\').style.display=document.getElementById(\'' + rawId + '\').style.display===\'none\'?\'block\':\'none\'" style="font-size:11px;">🔧 Raw Response</button><pre id="' + rawId + '" style="display:none;font-size:11px;background:#1a1a2e;color:#e0e0e0;padding:10px;border-radius:6px;margin-top:6px;max-height:300px;overflow:auto;white-space:pre-wrap;word-break:break-all;">' + escHtml(replyStr) + '</pre></div>';
+
+            if (!result || !result.extracted) {
+                sampleVerified = false;
+                updateSubmitState();
+                panel.innerHTML = '<div class="verification-panel"><div class="vp-header warning">⚠️ Could not extract soil samples from file</div><div class="vp-body"><p style="white-space:pre-wrap;font-size:12px;">' + escHtml(result && result.message ? result.message : replyStr) + '</p>' + rawToggle + '</div></div>';
+                panel.style.display = 'block';
+                return false;
+            }
+
+            const isSuccess = result.success === 'yes';
+            const extractedData = result.extracted;
+
+            let html = '<div class="verification-panel">';
+            if (isSuccess) {
+                var cols = Object.keys(extractedData);
+                var nRows = extractedData[cols[0]] ? extractedData[cols[0]].length : 0;
+                html += '<div class="vp-header success">✅ Extracted ' + nRows + ' samples × ' + cols.length + ' columns</div>';
+            } else {
+                html += '<div class="vp-header error">❌ Extraction Issues</div>';
+            }
+
+            html += '<div class="vp-body">';
+            if (result.message) html += '<p style="margin-bottom:8px;"><strong>Summary:</strong> ' + escHtml(result.message) + '</p>';
+            if (result.warnings && result.warnings.length > 0) {
+                html += '<p style="color:#B7950B;font-weight:600;">⚠️ Warnings:</p><ul>';
+                result.warnings.forEach(function (w) { html += '<li>' + escHtml(w) + '</li>'; });
+                html += '</ul>';
+            }
+            if (result.errors && result.errors.length > 0) {
+                html += '<p style="color:#B91C1C;font-weight:600;">❌ Errors:</p><ul>';
+                result.errors.forEach(function (e) { html += '<li>' + escHtml(e) + '</li>'; });
+                html += '</ul>';
+            }
+
+            if (extractedData && Object.keys(extractedData).length > 0) {
+                html += '<div class="accept-bar"><button type="button" class="abtn accept" onclick="acceptExtractedSamples()">✅ Accept Extracted Data</button><button type="button" class="abtn refuse" onclick="removeSampleFile()">✕ Remove & Re-upload</button></div>';
+            }
+
+            html += rawToggle + '</div></div>';
+            panel.innerHTML = html;
+            panel.style.display = 'block';
+
+            // Store extracted data and show in editable table
+            if (extractedData && Object.keys(extractedData).length > 0) {
+                parsedSamples = extractedData;
+                originalParsedSamples = {};
+                Object.keys(extractedData).forEach(function (k) {
+                    originalParsedSamples[k] = Array.isArray(extractedData[k]) ? extractedData[k].slice() : extractedData[k];
+                });
+                document.getElementById('soilSamples').value = JSON.stringify(extractedData);
+                showSamplePreview(extractedData);
+                tryDisplaySamplesOnMap(extractedData);
+                if (isSuccess) {
+                    sampleVerified = true;
+                }
+            }
+            updateSubmitState();
+            return true;
+        }
+
+        function acceptExtractedSamples() {
+            document.getElementById('verificationPanel').style.display = 'none';
+            sampleVerified = true;
+            updateSubmitState();
+            showValidation('✅ Extracted data accepted! You can edit the table if needed.', 'success');
         }
 
         function parseCSV(text, delimiter) {
@@ -3655,55 +3782,12 @@
         }
 
         async function verifySamples() {
-            if (!parsedSamples && !rawSampleText) {
+            // Re-extract: trigger re-upload of the same file
+            const input = document.getElementById('sampleFileInput');
+            if (input && input.files && input.files[0]) {
+                handleSampleFile({ target: input });
+            } else {
                 showValidation('⚠️ Please upload a soil samples file first.', 'error');
-                return;
-            }
-            const verifyBtn = document.getElementById('verifyBtn');
-            const panel = document.getElementById('verificationPanel');
-            if (verifyBtn) { verifyBtn.disabled = true; verifyBtn.textContent = '⏳ Verifying…'; }
-            panel.innerHTML = '<div class="verification-panel"><div class="vp-header" style="background:var(--syngenta-light);color:var(--syngenta-dark);justify-content:center;">⏳ Verifying & extracting soil data…</div></div>';
-            panel.style.display = 'block';
-            clearValidation();
-
-            const chatInput = parsedSamples
-                ? 'VERIFY_SAMPLES: ' + JSON.stringify(parsedSamples)
-                : 'VERIFY_SAMPLES: ' + rawSampleText;
-
-            const MAX_RETRIES = 3;
-            let attempt = 0;
-            let success = false;
-
-            while (attempt < MAX_RETRIES && !success) {
-                attempt++;
-                if (attempt > 1) {
-                    console.log('[verifySamples] Retry attempt ' + attempt + '/' + MAX_RETRIES);
-                    panel.innerHTML = '<div class="verification-panel"><div class="vp-header" style="background:var(--syngenta-light);color:var(--syngenta-dark);justify-content:center;">⏳ Retry ' + attempt + '/' + MAX_RETRIES + ' — Verifying soil data…</div></div>';
-                }
-                try {
-                    const response = await authFetch(WEBHOOK_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ chatInput, sessionId: SESSION_ID })
-                    });
-                    if (!response.ok) throw new Error('Server responded with status ' + response.status);
-                    const data = await response.json();
-                    const reply = extractReply(data);
-                    console.log('[verifySamples] attempt ' + attempt + ' typeof reply:', typeof reply, '| keys:', typeof reply === 'object' && reply ? Object.keys(reply) : 'N/A');
-                    success = displayVerificationResults(reply);
-                } catch (err) {
-                    console.warn('[verifySamples] attempt ' + attempt + ' error:', err.message);
-                    if (attempt >= MAX_RETRIES) {
-                        showValidation('⚠️ Verification failed after ' + MAX_RETRIES + ' attempts: ' + err.message, 'error');
-                        panel.style.display = 'none';
-                    }
-                }
-            }
-
-            if (verifyBtn) {
-                verifyBtn.disabled = false;
-                verifyBtn.textContent = '🔄 Re-verify Samples';
-                verifyBtn.style.display = 'block';
             }
         }
 
