@@ -3424,6 +3424,7 @@
         async function handleSampleFile(event) {
             const file = event.target.files[0];
             if (!file) return;
+            const ext = file.name.split('.').pop().toLowerCase();
 
             // Show processing state
             document.getElementById('sampleFileName').textContent = '⏳ Uploading & extracting from ' + file.name + '…';
@@ -3443,11 +3444,28 @@
             updateSubmitState();
 
             try {
-                // Read file as base64 — NO local preprocessing
-                const arrayBuffer = await readFileAs(file, 'arraybuffer');
-                const base64 = arrayBufferToBase64(arrayBuffer);
+                // Determine if file is text-readable or binary
+                const textFormats = ['csv', 'tsv', 'txt', 'json', 'geojson'];
+                const isTextFormat = textFormats.includes(ext);
 
-                // Send raw file to n8n for extraction
+                let payload = {
+                    filename: file.name,
+                    mimeType: file.type || 'application/octet-stream',
+                    sessionId: SESSION_ID
+                };
+
+                if (isTextFormat) {
+                    // Send actual text content — AI can read this directly
+                    const textContent = await readFileAs(file, 'text');
+                    if (!textContent || textContent.trim().length === 0) throw new Error('File is empty.');
+                    payload.textContent = textContent;
+                } else {
+                    // Binary formats (PDF, XLSX, DOCX, Numbers, Shapefile) — send as base64
+                    const arrayBuffer = await readFileAs(file, 'arraybuffer');
+                    payload.file = arrayBufferToBase64(arrayBuffer);
+                }
+
+                // Send to n8n for extraction
                 const panel = document.getElementById('verificationPanel');
                 panel.innerHTML = '<div class="verification-panel"><div class="vp-header" style="background:var(--syngenta-light);color:var(--syngenta-dark);justify-content:center;">⏳ Extracting soil samples from file…</div></div>';
                 panel.style.display = 'block';
@@ -3465,12 +3483,7 @@
                         const response = await authFetch(EXTRACT_SAMPLES_URL, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                file: base64,
-                                filename: file.name,
-                                mimeType: file.type || 'application/octet-stream',
-                                sessionId: SESSION_ID
-                            })
+                            body: JSON.stringify(payload)
                         });
                         if (!response.ok) throw new Error('Server responded with status ' + response.status);
                         const data = await response.json();
